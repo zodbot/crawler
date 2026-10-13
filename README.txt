@@ -9,7 +9,8 @@ Then visit http://localhost:4173.
 
 Carl: A/D or Left/Right to move; Space to jump; J to punch;
 hold K to preview a bomb throw, release K to throw; E to interact;
-Q to mark a monster for Donut; P or Escape to pause.
+Q to mark a monster for Donut; I to open your inventory (also pauses);
+P or Escape to pause.
 
 Choose Human or Goblin, then Brawler or Saboteur. Brawlers push harder;
 Saboteurs can rewire floor traps with E. Strength affects punch damage;
@@ -21,11 +22,13 @@ P2 LEAVE returns Donut to AI. Gamepad and online co-op are not implemented.
 
 FLOOR
 1. Backstage: try movement, jumping and punching crates; use the exit door.
-2. First broadcast: defeat two monsters, open the chest for two bombs.
+2. Goblin road crew: a truck arrives and two goblins jump out. Defeat them,
+   open the cargo chest, then walk over its two bomb pickups. One goblin
+   also drops a bomb. The first backstage crate contains a tutorial bomb.
 3. Supply room: use the exit switch; optionally spend a bomb to open the
    cracked supply cache for +1 Strength and up to two health.
 4. Sponsor challenge: skip to the boss, or use the lever to accept a fight.
-   Winning unlocks a chest with two bombs and one health.
+   Winning unlocks a chest with two bomb pickups and one health.
 5. The Floor Manager: jump over charges. When the boss hits a wall, attack
    during its stun. Open its reward chest, then use the stairs to complete.
 
@@ -56,3 +59,9 @@ there is no trained RL policy or Gymnasium adapter in this first version.
 Only floor one is implemented. The stairs lead to a completion screen.
 
 Art, dialogue and game rules in this prototype are newly created.
+
+V0.2: GOBLIN ROAD CREW + INVENTORY
+Bomb pickups are unlit and remain on the ground until collected. Collected
+bombs stay in your inventory between rooms and are consumed one per throw.
+The inventory button below the game or I opens the bag and pauses the fight.
+The start screen also offers a shortcut directly to the goblin encounter.
