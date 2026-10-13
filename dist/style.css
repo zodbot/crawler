@@ -10,3 +10,6 @@
 
 /* Matching cast portraits, kept legible beside the game. */
 .portrait,.donut-avatar{width:46px;height:46px;overflow:hidden;flex-shrink:0}.portrait svg,.donut-avatar svg{width:100%;height:100%;display:block}
+
+/* Smooth scaling for the high-resolution character drawing. */
+#game{image-rendering:auto}

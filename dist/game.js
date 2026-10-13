@@ -5,6 +5,7 @@
 const $ = id => document.getElementById(id);
 const canvas=$('game'), ctx=canvas.getContext('2d');
 const W=1100,H=500,FLOOR=420,DT=1/60,SAVE='dungeon-broadcast-v1';
+canvas.width=W*2;canvas.height=H*2;ctx.scale(2,2);
 const roomNames=['Backstage','Goblin road crew','Supply room','Sponsor challenge','The Hoarder'];
 const keys=new Set(), pressed=new Set();
 let s, p, cat, enemies=[], props=[], platforms=[], bombs=[], shots=[], hostile=[], particles=[], floats=[];
@@ -238,42 +239,63 @@ function pixelSprite(rows,palette,x,y,scale=3,flip=false){ctx.save();ctx.transla
 const monsterSprite=['.....rrrrr......','....rrrrrrr.....','g..ggggggggg..g.','.ggggggggggggg..','..ggwggggwggg...','...gggnggggg....','....gkkwggg.....','....hhhhhh......','...hhhbhhhh.....','..gghhbhhhgg....','..gghhbhhhgg....','....bbbbbb......','....bb..bb......','...ggg..ggg.....'];
 // Display-only character art. Feet remain anchored to the simulation positions;
 // the larger silhouettes do not change reach, collision, or platform movement.
+// Smooth, shaded cartoon artwork; gameplay still uses the original simulation.
 function drawCarl(){
- const moving=p.onGround&&Math.abs(p.vx)>10,walk=moving?Math.sin(time*17):0;
- const bob=moving?Math.abs(walk)*1.5:Math.sin(time*2)*.4;
- const green=s.race==='goblin',skin=green?'#a7c884':'#e6af88',light=green?'#c4dca1':'#ffd1a3',shade=green?'#718c63':'#b97760';
+ const moving=p.onGround&&Math.abs(p.vx)>10,walk=moving?Math.sin(time*15):0;
+ const bob=moving?Math.abs(walk)*1.5:Math.sin(time*2.2)*.65;
+ const green=s.race==='goblin';
+ const ink='#422c32',skin=green?'#b2ce91':'#efb58d',highlight=green?'#e0e9b5':'#ffdcaf',shade=green?'#70895f':'#bc775c';
+ const grad=(x,y,x2,y2,a,b)=>{const g=ctx.createLinearGradient(x,y,x2,y2);g.addColorStop(0,a);g.addColorStop(1,b);return g;};
+ const oval=(x,y,rx,ry,fill,stroke=ink,width=1.3)=>{ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();}};
+ const shape=(commands,fill,stroke=ink,width=1.4)=>{ctx.beginPath();for(const a of commands)ctx[a[0]](...a.slice(1));ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();}};
+ const line=(x,y,x2,y2,color,width=1)=>{ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();};
+ const heart=(x,y,size)=>{ctx.save();ctx.translate(x,y);ctx.scale(size,size);shape([['moveTo',0,1],['bezierCurveTo',-5,-3,-3,-6,0,-3],['bezierCurveTo',3,-6,5,-3,0,1]],'#c9637c',null);ctx.restore();};
  ctx.save();if(p.inv>0&&Math.floor(time*12)%2)ctx.globalAlpha=.35;
- rect(p.x-25,p.y-3,50,6,'#0006');ctx.translate(Math.round(p.x),Math.round(p.y));ctx.scale(p.face*2,2);
- // Bare feet and alternating leg positions.
- const left=p.onGround?Math.round(walk*2):-2,right=p.onGround?-Math.round(walk*2):1;
- rect(-10,-12+left,8,11,'#20232d');rect(3,-12+right,8,11,'#20232d');
- rect(-9,-12+left,6,10,shade);rect(4,-12+right,6,10,skin);
- rect(-11,-3+left,10,3,'#20232d');rect(2,-3+right,12,3,'#20232d');
- rect(-10,-3+left,8,2,skin);rect(3,-3+right,10,2,light);
- ctx.translate(0,-Math.round(bob));
- // Boxer shorts: bright waistband, folds, red hearts.
- rect(-11,-20,23,10,'#252330');rect(-10,-20,21,8,'#e6e0cf');rect(-10,-20,21,2,'#fff5dc');
- rect(-10,-17,3,5,'#b9b6ae');rect(0,-14,2,4,'#7e7b82');
- for(const [x,y]of [[-6,-17],[5,-16]]){rect(x,y,2,1,'#cc687b');rect(x+3,y,2,1,'#cc687b');rect(x,y+1,5,1,'#cc687b');rect(x+1,y+2,3,1,'#cc687b');rect(x+2,y+3,1,1,'#cc687b');}
- // Shoulders and torso; fine highlights keep the silhouette readable.
- rect(-12,-31,24,12,'#252330');rect(-10,-32,20,12,skin);rect(-9,-30,18,9,skin);
- rect(-9,-30,4,10,shade);rect(-3,-30,12,2,light);rect(8,-29,2,9,shade);rect(1,-23,2,1,shade);
- // Back arm swings separately from the punching arm.
- rect(-15,-29+Math.round(walk),6,13,'#252330');rect(-14,-28+Math.round(walk),4,11,shade);rect(-14,-18+Math.round(walk),5,3,skin);
- rect(-14,-26+Math.round(walk),3,4,'#555766');rect(-13,-25+Math.round(walk),2,1,'#989797');
- // Neck, outlined head, swept hair and stubble.
- rect(-4,-34,11,5,shade);rect(-8,-41,17,12,'#252330');rect(-9,-38,20,6,skin);
- rect(-7,-40,15,11,skin);rect(-3,-39,11,7,light);rect(8,-36,4,4,skin);
- rect(-8,-42,17,5,'#4c3432');rect(-5,-44,11,3,'#4c3432');rect(-6,-42,10,1,'#89604c');rect(-8,-39,3,4,'#4c3432');
- rect(2,-38,6,1,'#563e38');rect(3,-36,4,2,'#fff0d5');rect(5,-36,2,2,'#27313a');
- rect(-3,-32,12,3,'#735044');rect(3,-32,5,1,'#e5ac83');rect(1,-30,6,1,'#4c3432');
- if(green){rect(-13,-38,6,3,shade);rect(-15,-39,4,2,skin);rect(9,-38,5,3,skin);}
+ oval(p.x,p.y-1,25,4,'#0005',null);ctx.translate(p.x,p.y);ctx.scale(p.face,1);ctx.lineCap='round';ctx.lineJoin='round';
+ // Bent legs with broad bare feet. Joint rotation gives a soft running cycle.
+ for(const back of [true,false]){ctx.save();ctx.translate(back?-9:8,-24);ctx.rotate((back?-1:1)*walk*.34+(p.onGround?0:back?.32:-.42));
+ shape([['moveTo',-6,0],['quadraticCurveTo',-7,9,-4,18],['quadraticCurveTo',1,21,6,17],['lineTo',6,0]],grad(-6,0,7,15,back?skin:highlight,shade));
+ oval(3,20,10,4.1,grad(-5,15,10,24,highlight,skin));line(7,18.4,7.5,21.5,shade,.65);line(10,19,10.5,21.7,shade,.65);ctx.restore();}
+ ctx.translate(0,-bob);
+ // Rear arm, shoulder and bicep.
+ ctx.save();ctx.translate(-17,-52);ctx.rotate(walk*.3);
+ shape([['moveTo',-4,-4],['quadraticCurveTo',-12,0,-9,15],['quadraticCurveTo',-11,24,-4,27],['quadraticCurveTo',3,28,3,19],['lineTo',5,3]],grad(-10,0,5,0,shade,skin));oval(-3,24,6,6,skin);ctx.restore();
+ // Broad chest, a tapered waist, warm rim light and subtle muscle definition.
+ shape([['moveTo',-8,-62],['quadraticCurveTo',-18,-62,-21,-52],['quadraticCurveTo',-20,-44,-15,-36],['lineTo',-13,-28],['quadraticCurveTo',0,-23,15,-28],['lineTo',18,-48],['quadraticCurveTo',20,-60,8,-62]],grad(-20,-60,20,-26,highlight,shade));
+ shape([['moveTo',-6,-58],['quadraticCurveTo',0,-54,10,-56],['quadraticCurveTo',15,-49,11,-42],['quadraticCurveTo',1,-39,-8,-43],['quadraticCurveTo',-13,-51,-6,-58]],grad(-10,-57,12,-37,highlight,skin),null);
+ ctx.globalAlpha*=.55;line(-9,-48,-1,-46,shade,.9);line(3,-46,11,-47,shade,.9);line(1,-44,1,-40,shade,.8);oval(1,-34,1.1,.8,shade,null);ctx.globalAlpha=p.inv>0&&Math.floor(time*12)%2?.35:1;
+ // Soft fabric shorts: rounded hems, contrasting piping, folds and hearts.
+ shape([['moveTo',-15,-30],['quadraticCurveTo',0,-27,16,-30],['lineTo',17,-16],['quadraticCurveTo',10,-13,2,-16],['lineTo',0,-21],['lineTo',-2,-16],['quadraticCurveTo',-11,-13,-17,-17]],grad(-12,-32,10,-13,'#fff8e9','#bdbac5'));
+ shape([['moveTo',-15,-31],['quadraticCurveTo',0,-28,16,-31],['lineTo',16,-27],['quadraticCurveTo',0,-24,-15,-27]],'#f7e4d1',ink,.8);
+ line(-14,-17,-5,-17,'#fdf7eb',1.4);line(5,-16,14,-17,'#fdf7eb',1.4);line(0,-25,0,-22,'#888596',.8);
+ heart(-9,-21,.8);heart(9,-20,.8);heart(0,-27,.48);
+ // Neck and head in three-quarter view, with a strong jaw rather than square pixels.
+ oval(0,-61,8,8,grad(-6,-66,8,-56,skin,shade));
+ oval(-12,-74,5,7,skin);oval(-12,-74,2.1,3.3,shade,null);
+ if(green)shape([['moveTo',-13,-79],['lineTo',-23,-86],['quadraticCurveTo',-23,-73,-12,-70]],skin);
+ shape([['moveTo',-12,-87],['bezierCurveTo',-7,-94,11,-94,16,-85],['quadraticCurveTo',20,-77,16,-68],['quadraticCurveTo',14,-60,3,-60],['quadraticCurveTo',-8,-60,-12,-69],['quadraticCurveTo',-16,-80,-12,-87]],grad(-13,-89,16,-61,highlight,shade));
+ oval(3,-78,13,14,grad(-5,-90,18,-69,highlight,skin),null);
+ // Tousled chestnut hair, swept fringe, sideburn and a soft reflected highlight.
+ shape([['moveTo',-14,-76],['quadraticCurveTo',-20,-86,-13,-93],['lineTo',-17,-96],['quadraticCurveTo',-8,-99,-3,-96],['quadraticCurveTo',6,-102,11,-95],['quadraticCurveTo',23,-94,19,-86],['quadraticCurveTo',11,-90,5,-87],['quadraticCurveTo',0,-83,-9,-87],['lineTo',-10,-74]],grad(-12,-98,16,-77,'#81523b','#3b2930'));
+ ctx.beginPath();ctx.moveTo(-10,-92);ctx.quadraticCurveTo(0,-98,12,-91);ctx.strokeStyle='#b17a50';ctx.lineWidth=2;ctx.stroke();
+ // Brows and eyes. A short blink keeps the face alive at rest.
+ const blink=Math.sin(time*.74)>.996;
+ if(blink){line(-4,-78,1,-78,ink,1.5);line(7,-78,14,-78,ink,1.5);}
+ else {oval(-2,-78,3.2,4,'#fff9eb',ink,.8);oval(10,-78,4,4.5,'#fff9eb',ink,.8);oval(-.6,-77.5,1.6,2.7,'#556c72',null);oval(11.6,-77.4,2,3,'#506b76',null);oval(.1,-77.3,.9,2,'#25313d',null);oval(12.2,-77.2,1.1,2.2,'#25313d',null);oval(11,-79,1,1,'white',null);}
+ line(-6,-84,1,-84.8,'#4b3331',2.3);line(6,-84.5,14,-83,'#4b3331',2.5);
+ // Nose, subtle stubble and a determined half-smile.
+ shape([['moveTo',6,-78],['quadraticCurveTo',10,-72,16,-73],['quadraticCurveTo',18,-68,11,-68],['quadraticCurveTo',7,-68,6,-71]],grad(6,-76,15,-68,highlight,skin),shade,.8);
+ shape([['moveTo',-7,-69],['quadraticCurveTo',-2,-65,4,-67],['quadraticCurveTo',12,-65,16,-69],['quadraticCurveTo',14,-59,3,-60],['quadraticCurveTo',-5,-61,-7,-69]],'#936d5d55',null);
+ ctx.beginPath();ctx.moveTo(0,-65.5);ctx.quadraticCurveTo(7,-62.5,12,-66);ctx.strokeStyle='#754b47';ctx.lineWidth=1.2;ctx.stroke();
+ line(-3,-66,-2.4,-64.5,'#886354',.6);line(-.5,-64.4,0,-63.4,'#886354',.6);line(3,-63.5,3.4,-62.5,'#886354',.6);
+ // Front arm rotates through the walk and extends into the existing punch range.
  if(p.attack>0){
-  // Fist stays close to the existing strike area instead of enlarging its reach.
-  rect(8,-27,13,7,'#252330');rect(9,-26,13,5,skin);rect(19,-28,9,8,'#252330');rect(20,-27,7,6,light);rect(20,-24,7,1,skin);
-  rect(30,-29,2,4,'#ffddb788');rect(32,-24,4,2,'#ffddb788');rect(30,-19,2,3,'#ffddb788');
- }else{const swing=Math.round(walk);rect(10,-29-swing,6,13,'#252330');rect(11,-28-swing,4,10,skin);rect(10,-19-swing,7,4,'#252330');rect(11,-19-swing,5,3,light);}
- ctx.restore();text('CARL',p.x,p.y-101,10,'#f4cfac');
+ shape([['moveTo',16,-53],['quadraticCurveTo',25,-58,32,-49],['lineTo',45,-48],['lineTo',47,-38],['quadraticCurveTo',31,-34,24,-41],['quadraticCurveTo',15,-42,16,-53]],grad(20,-54,35,-37,highlight,shade));
+ oval(49,-45,9,8,grad(43,-52,55,-39,highlight,skin));line(46,-49,53,-49,skin,1);line(48,-45,55,-45,shade,.7);
+ ctx.beginPath();ctx.arc(52,-46,16,-.75,.75);ctx.strokeStyle='#ffe0b688';ctx.lineWidth=2.5;ctx.stroke();
+ }else{ctx.save();ctx.translate(18,-53);ctx.rotate(-walk*.32);
+ shape([['moveTo',-3,-4],['quadraticCurveTo',7,-8,9,3],['quadraticCurveTo',10,11,5,18],['lineTo',5,23],['lineTo',-5,23],['quadraticCurveTo',-9,14,-5,7]],grad(-6,-5,10,18,highlight,shade));oval(1,23,7,6.5,grad(-5,18,8,26,highlight,skin));line(2,24,7,24,shade,.7);ctx.restore();}
+ ctx.restore();text('CARL',p.x,p.y-112,10,'#f4cfac');
 }
 function drawCat(){
  const moving=cat.onGround&&Math.abs(cat.vx)>10,step=moving?Math.sin(time*18):0;
@@ -350,7 +372,7 @@ function render(){ctx.save();if(shake)ctx.translate(Math.sin(time*80)*shake,Math
  drawAim();for(const a of particles){ctx.globalAlpha=clamp(a.life*2,0,1);if(a.radius){ctx.strokeStyle=a.color;ctx.lineWidth=6;ctx.beginPath();ctx.arc(a.x,a.y,a.radius*(1-a.life/.35),0,Math.PI*2);ctx.stroke();ctx.lineWidth=1;}else rect(a.x,a.y,a.size,a.size,a.color);}ctx.globalAlpha=1;
  for(const f of floats){ctx.globalAlpha=clamp(f.life,0,1);text(f.text,f.x,f.y,12,f.color);}ctx.globalAlpha=1;ctx.restore();
  // Soft vignette, and tiny scan lines for the televised-dungeon look.
- const v=ctx.createLinearGradient(0,0,0,H);v.addColorStop(0,'#090d1b66');v.addColorStop(.25,'#00000000');v.addColorStop(.9,'#00000000');v.addColorStop(1,'#080b1655');ctx.fillStyle=v;ctx.fillRect(0,0,W,H);for(let y=0;y<H;y+=4)rect(0,y,W,1,'#070c1218');ctx.restore();
+ const v=ctx.createLinearGradient(0,0,0,H);v.addColorStop(0,'#090d1b66');v.addColorStop(.25,'#00000000');v.addColorStop(.9,'#00000000');v.addColorStop(1,'#080b1655');ctx.fillStyle=v;ctx.fillRect(0,0,W,H);for(let y=0;y<H;y+=4)rect(0,y,W,1,'#070c1208');ctx.restore();
 }
 function frame(stamp){if(!last)last=stamp;acc+=Math.min((stamp-last)/1000,.08);last=stamp;while(acc>=DT){tick(DT);acc-=DT;}render();requestAnimationFrame(frame);}
 window.addEventListener('keydown',e=>{const controlled=['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyA','KeyD','KeyW','KeyJ','KeyK','KeyQ','KeyE','Slash','KeyP','KeyI','KeyT','Escape'];if(!controlled.includes(e.code))return;if(e.target instanceof HTMLButtonElement&&e.code==='Space')return;e.preventDefault();if(e.repeat)return;if(e.code==='KeyI'){inventory();return;}if(e.code==='KeyP'||e.code==='Escape'){mode==='pause'||mode==='inventory'?resume():pause();return;}if(!keys.has(e.code))pressed.add(e.code);keys.add(e.code);});
@@ -363,6 +385,6 @@ try{sound=localStorage.getItem('dungeon-broadcast-sound')==='on';}catch{}updateS
 $('coop').onclick=()=>{coop=!coop;$('coop').innerHTML='P2 <span>'+(coop?'LEAVE':'JOIN')+'</span>';toast(coop?'PLAYER 2 · ARROWS + / TO CAST':'DONUT AI IS BACK');say(coop?'At last. Someone qualified to direct my talents.':'I was doing a splendid job on my own, actually.');canvas.focus({preventScroll:true});};
 document.querySelectorAll('[data-key]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);const k=b.dataset.key;if(!keys.has(k))pressed.add(k);keys.add(k);});const release=()=>keys.delete(b.dataset.key);b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',release);});
 // Read-only structured observations are available for future planning experiments.
-window.dungeon={observe:()=>clone({mode,room:s.room,stats:{strength:s.str,intelligence:s.int,health:s.hp,bombs:s.bombs,audience:s.fame},player:p,companion:cat,enemies:alive(),objects:props,inventory:{bombs:s.bombs,traps:s.traps},projectiles:hostile,decisions:s.log}),version:'0.4.0'};
+window.dungeon={observe:()=>clone({mode,room:s.room,stats:{strength:s.str,intelligence:s.int,health:s.hp,bombs:s.bombs,audience:s.fame},player:p,companion:cat,enemies:alive(),objects:props,inventory:{bombs:s.bombs,traps:s.traps},projectiles:hostile,decisions:s.log}),version:'0.5.0'};
 setup();requestAnimationFrame(frame);
 })();

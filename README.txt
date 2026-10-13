@@ -83,3 +83,5 @@ Older room checkpoints without trap stock receive two kits from room 3 on.
 Monster appearances and combat are simplified interpretations for this game.
 
 V0.4 character art: larger, detailed Carl and Princess Donut; animated limbs and tail; matching HUD portraits. Character artwork is display-only; collision, combat reach, progression, and save compatibility are unchanged.
+
+V0.5: smooth shaded cartoon Carl, jointed animation and blinking face; matching portrait; doubled canvas resolution. Donut artwork and gameplay are unchanged.
