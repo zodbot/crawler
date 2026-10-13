@@ -9,7 +9,8 @@ Then visit http://localhost:4173.
 
 Carl: A/D or Left/Right to move; Space to jump; J to punch;
 hold K to preview a bomb throw, release K to throw; E to interact;
-Q to mark a monster for Donut; I to open your inventory (also pauses);
+Q to mark a monster for Donut; T to place a snare trap;
+E beside an unused snare to recover it; I opens inventory and pauses;
 P or Escape to pause.
 
 Choose Human or Goblin, then Brawler or Saboteur. Brawlers push harder;
@@ -24,13 +25,17 @@ FLOOR
 1. Backstage: try movement, jumping and punching crates; use the exit door.
 2. Goblin road crew: a truck arrives and two goblins jump out. Defeat them,
    open the cargo chest, then walk over its two bomb pickups. One goblin
-   also drops a bomb. The first backstage crate contains a tutorial bomb.
-3. Supply room: use the exit switch; optionally spend a bomb to open the
+   also drops a bomb. The cargo gives two snare trap kits directly to your
+   inventory. The first backstage crate contains a tutorial bomb.
+3. Supply room: a ranged Bad Llama guards the far side. Dodge its spit,
+   approach behind cover, or set a snare. Use the exit switch; optionally
+   spend a bomb to open the
    cracked supply cache for +1 Strength and up to two health.
 4. Sponsor challenge: skip to the boss, or use the lever to accept a fight.
    Winning unlocks a chest with two bomb pickups and one health.
-5. The Floor Manager: jump over charges. When the boss hits a wall, attack
-   during its stun. Open its reward chest, then use the stairs to complete.
+5. The Hoarder: move away from the marked landing spots of three junk
+   throws, then attack while the boss is winded. A snare also interrupts
+   the boss for 1.5 seconds. Open the reward chest, then use the stairs.
 
 Environmental tricks and teamwork earn audience points. Each recognized
 trick pays once per room; every two clever moments grant Intelligence +1.
@@ -65,3 +70,14 @@ Bomb pickups are unlit and remain on the ground until collected. Collected
 bombs stay in your inventory between rooms and are consumed one per throw.
 The inventory button below the game or I opens the bag and pauses the fight.
 The start screen also offers a shortcut directly to the goblin encounter.
+
+V0.3: SNARES, BAD LLAMA, AND THE HOARDER
+Press T on the dungeon floor to spend one trap kit and place a snare. It
+arms in one second. It holds one enemy for 2 + 0.15 x Intelligence seconds;
+bosses are held for 1.5 seconds. One unused snare can be deployed at a time.
+Carl and Donut cross safely. Press E nearby to recover an unused snare.
+Leaving a room packs unused snares automatically. Sprung snares are spent.
+Trapping an enemy and following up with a bomb earns an audience bonus.
+Practice shortcuts on the start screen provide 3 bombs and 2 trap kits.
+Older room checkpoints without trap stock receive two kits from room 3 on.
+Monster appearances and combat are simplified interpretations for this game.

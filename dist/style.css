@@ -5,3 +5,5 @@
 #sound{white-space:nowrap}#sound[aria-pressed="true"]{color:var(--orange);border-color:#886340;background:#362d26}@media(max-width:650px){#sound{display:block;padding:7px 5px}#sound span{font-size:7px}.hud{gap:6px}.audience{min-width:42px}.audience>div:first-child{font-size:7px;letter-spacing:0}.audience i{display:none}.touch-controls{display:flex}}
 
 .quick-encounter{display:block;margin-top:12px;padding:0;color:#cbb99c;font-size:10px;text-decoration:underline;text-underline-offset:3px}
+
+.trap-stock{color:#c1d6a0!important}.trap-symbol{font-size:36px;color:#bdd197;min-width:25px;line-height:1}.inventory-item{padding:14px 20px;margin:10px 0}.inventory-item p{font-size:10px}.touch-controls{flex-wrap:wrap}.touch-controls button{min-width:38px}

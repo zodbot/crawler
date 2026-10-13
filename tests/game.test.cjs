@@ -13,7 +13,7 @@ function game(race='human',job='brawler') {
   const document={getElementById:node,querySelectorAll:()=>[],addEventListener:(k,f)=>listeners[k]=f,hidden:false,createElement:()=>({click(){}})};
   const window={addEventListener:(k,f)=>listeners[k]=f};
   const context=vm.createContext({document,window,HTMLButtonElement:class{},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},requestAnimationFrame(){},setTimeout(){},Blob,URL,console,Math});
-  const hooks=`window.testAPI={get state(){return s},get player(){return p},get cat(){return cat},get enemies(){return enemies},get props(){return props},get bombs(){return bombs},get mode(){return mode},get coop(){return coop},keys,pressed,tick,render,use,punch,explode,damage,award,cast,mark,retry,hurt,loadRoom,pause,resume,finish,setup,inventory,dropBombs,broadcastClear,begin(r,j){race=r;job=j;s=fresh();mode='play';loadRoom(0);hide();}};`;
+  const hooks=`window.testAPI={get state(){return s},get player(){return p},get cat(){return cat},get enemies(){return enemies},get props(){return props},get bombs(){return bombs},get hostile(){return hostile},get mode(){return mode},get coop(){return coop},keys,pressed,tick,render,use,punch,explode,damage,award,cast,mark,retry,hurt,loadRoom,pause,resume,finish,setup,inventory,dropBombs,broadcastClear,placeSnare,snareTick,spawnEnemy,llamaTick,hostileTick,practice,begin(r,j){race=r;job=j;s=fresh();mode='play';loadRoom(0);hide();}};`;
   let source=fs.readFileSync(path.join(__dirname,'../dist/game.js'),'utf8').replace('setup();requestAnimationFrame(frame);',hooks+'setup();requestAnimationFrame(frame);');
   vm.runInContext(source,context);const g=window.testAPI;g.begin(race,job);
   return {g,nodes,storage,listeners,step:(seconds)=>{for(let n=0;n<Math.round(seconds*60);n++)g.tick(1/60);},at:(x,y=420)=>{g.player.x=x;g.player.y=y;},press:(k)=>{g.pressed.add(k);g.keys.add(k);g.tick(1/60);g.keys.delete(k);}};
@@ -39,7 +39,7 @@ test('Truck must arrive and unload; cargo requires defeating both goblins and co
  at(1370);g.use();assert.equal(g.state.bombs,0);assert.equal(g.enemies.length,0);
  at(400);step(6);assert.equal(g.enemies.length,2);assert.ok(g.props.find(p=>p.type==='truck').phase==='parked');
  g.enemies.forEach((e,i)=>{e.x=800+i*100;g.damage(e,100,'punch');});at(1550);g.use();assert.equal(g.state.room,1);
- at(1370);g.use();assert.equal(g.state.bombs,0);assert.ok(g.props.some(p=>p.type==='pickup'&&p.source==='cargo'));
+ at(1370);g.use();assert.equal(g.state.bombs,0);assert.equal(g.state.traps,2);assert.ok(g.props.some(p=>p.type==='pickup'&&p.source==='cargo'));
  at(1550);g.use();assert.equal(g.state.room,1);at(1370);step(.5);assert.equal(g.state.bombs,2);
  g.use();step(.5);assert.equal(g.state.bombs,2);at(1550);g.use();assert.equal(g.state.room,2);assert.equal(g.state.bombs,2);
 });
@@ -61,11 +61,10 @@ test('Saboteurs can rewire traps; Brawlers cannot; smart bonuses cannot be farme
  const fame=g.state.fame;g.use();assert.equal(g.state.fame,fame);step(1);assert.equal(g.state.hp,6);
  const b=game();b.g.loadRoom(4);b.at(920);b.g.use();assert.ok(!b.g.props.find(p=>p.type==='trap').rewired);
 });
-test('Boss telegraphs, charges, hits the wall, and takes more damage when stunned',()=>{
+test('The Hoarder telegraphs three aimed junk throws, then exposes a recovery window',()=>{
  const {g,at,step}=game();g.loadRoom(4);at(450);const boss=g.enemies[0];g.damage(boss,10,'punch');assert.equal(boss.hp,98);
- step(1.1);assert.equal(boss.phase,'windup');step(1.3);assert.equal(boss.phase,'charge');
- // Stand outside the charge line while waiting for the wall impact.
- at(50);step(2.5);assert.equal(boss.phase,'stunned');const hp=boss.hp;g.damage(boss,10,'punch');assert.equal(boss.hp,hp-10);
+ step(1.1);assert.equal(boss.phase,'windup');assert.equal(boss.targetX,450);at(150);step(1.2);assert.equal(boss.phase,'between');assert.ok(g.hostile.some(b=>b.type==='junk'&&b.targetX===450));
+ step(3.8);assert.equal(boss.throws,3);assert.equal(boss.phase,'stunned');const hp=boss.hp;g.damage(boss,10,'punch');assert.equal(boss.hp,hp-10);g.render();
 });
 test('Floor completion requires boss victory AND reward chest, then clears the saved run',()=>{
  const {g,at,storage}=game();g.loadRoom(4);at(1580);g.use();assert.equal(g.mode,'play');
@@ -108,4 +107,37 @@ test('Goblin loot survives explosions until collected and cannot be duplicated',
  g.damage(e,100,'explosion');const drops=g.props.filter(o=>o.type==='pickup'&&o.source==='goblin');assert.equal(drops.length,1);
  g.damage(e,100,'explosion');assert.equal(g.props.filter(o=>o.type==='pickup'&&o.source==='goblin').length,1);
  g.explode(1000,400);assert.equal(drops[0].active,true);at(1000);step(.5);assert.equal(g.state.bombs,1);
+});
+
+test('T places one trap, waits to arm, and E recovers it without duplication',()=>{
+ const {g,press,step,at}=game();g.state.traps=2;press('KeyT');const snare=g.props.find(o=>o.type==='snare');assert.ok(snare);assert.equal(g.state.traps,1);assert.ok(snare.arm>0);
+ press('KeyT');assert.equal(g.state.traps,1);assert.equal(g.props.filter(o=>o.type==='snare'&&o.active).length,1);
+ step(1.1);assert.equal(snare.arm,0);assert.equal(g.state.hp,6);at(snare.x);g.use();assert.equal(snare.active,false);assert.equal(g.state.traps,2);g.use();assert.equal(g.state.traps,2);
+});
+test('Traps reject airborne placement and empty inventories without consuming a kit',()=>{
+ const {g}=game();g.placeSnare();assert.equal(g.props.filter(o=>o.type==='snare').length,0);g.state.traps=2;g.player.onGround=false;g.placeSnare();assert.equal(g.state.traps,2);assert.equal(g.props.filter(o=>o.type==='snare').length,0);
+});
+test('A snare holds the first monster, is safe for companions, and is consumed after triggering',()=>{
+ const {g,step,at}=game();g.state.traps=2;at(180);g.placeSnare();step(1.1);const snare=g.props.find(o=>o.type==='snare');const e=g.spawnEnemy(180);g.enemies.push(e);g.cat.x=180;at(180);g.snareTick(snare,.016);
+ assert.equal(snare.spent,true);assert.ok(e.snared>2);assert.equal(g.state.hp,6);const x=e.x;step(.4);assert.equal(e.x,x);assert.equal(g.state.hp,6);g.use();assert.equal(g.state.traps,1);
+ g.damage(e,5,'explosion');assert.ok(g.state.seen.includes('snare-combo0'));const fame=g.state.fame;g.damage(e,5,'explosion');assert.equal(g.state.fame,fame);g.render();
+});
+test('Intelligence improves normal snares; bosses are limited to 1.5 seconds and can be interrupted',()=>{
+ const durations=[];for(const build of [['human','brawler'],['goblin','saboteur']]){const {g,step}=game(...build);g.state.traps=1;g.placeSnare();step(1.1);const e=g.spawnEnemy(100);g.enemies.push(e);g.snareTick(g.props.find(o=>o.type==='snare'),.016);durations.push(e.snared);}assert.ok(durations[1]>durations[0]);
+ const {g,at,step}=game();g.loadRoom(4);g.state.traps=1;at(700);g.placeSnare();at(50);step(1.1);const boss=g.enemies[0];boss.x=700;boss.phase='windup';boss.timer=.1;g.snareTick(g.props.find(o=>o.type==='snare'),.016);assert.equal(boss.snared,1.5);assert.equal(boss.phase,'stunned');step(.5);assert.equal(g.hostile.length,0);
+ step(1.1);assert.equal(boss.snared,0);assert.equal(boss.phase,'walk');
+});
+test('Unused traps pack on room exit; a retry restores entry stock and removes placed traps',()=>{
+ const {g,at}=game();g.state.traps=2;g.loadRoom(0);g.placeSnare();assert.equal(g.state.traps,1);at(1510);g.use();assert.equal(g.state.room,1);assert.equal(g.state.traps,2);g.placeSnare();g.retry();assert.equal(g.state.traps,2);assert.equal(g.props.some(o=>o.type==='snare'),false);
+});
+test('Bad Llama has a visible windup, shoots at range, and spit is stopped by cover',()=>{
+ const {g,at,step}=game();g.loadRoom(2);const llama=g.enemies[0];assert.equal(llama.type,'llama');llama.x=700;at(380);step(1.1);assert.equal(llama.phase,'windup');step(.95);assert.ok(g.hostile.some(b=>b.type==='spit'));
+ g.hostile.length=0;g.hostile.push({type:'spit',x:1065,y:400,vx:200,vy:0,life:3});g.hostileTick(.04);assert.equal(g.hostile.length,0);g.render();
+});
+test('Enemy projectiles can damage Carl, while jumping clear of their path avoids damage',()=>{
+ const {g,at}=game();at(500);g.hostile.push({type:'spit',x:490,y:390,vx:200,vy:0,life:2});g.hostileTick(.05);assert.equal(g.state.hp,5);
+ g.player.inv=0;at(500,300);g.hostile.push({type:'spit',x:490,y:390,vx:200,vy:0,life:2});g.hostileTick(.05);assert.equal(g.state.hp,5);
+});
+test('New practice entries provide bombs and traps; older checkpoints migrate trap stock',()=>{
+ const {g,nodes}=game();nodes.get('try-traps').onclick();assert.equal(g.state.room,2);assert.equal(g.state.traps,2);assert.equal(g.state.bombs,3);nodes.get('try-boss').onclick();assert.equal(g.state.room,4);assert.equal(g.enemies[0].type,'boss');delete g.state.traps;g.loadRoom(2);assert.equal(g.state.traps,2);
 });

@@ -5,9 +5,9 @@
 const $ = id => document.getElementById(id);
 const canvas=$('game'), ctx=canvas.getContext('2d');
 const W=1100,H=500,FLOOR=420,DT=1/60,SAVE='dungeon-broadcast-v1';
-const roomNames=['Backstage','Goblin road crew','Supply room','Sponsor challenge','The Floor Manager'];
+const roomNames=['Backstage','Goblin road crew','Supply room','Sponsor challenge','The Hoarder'];
 const keys=new Set(), pressed=new Set();
-let s, p, cat, enemies=[], props=[], platforms=[], bombs=[], shots=[], particles=[], floats=[];
+let s, p, cat, enemies=[], props=[], platforms=[], bombs=[], shots=[], hostile=[], particles=[], floats=[];
 let mode='setup',camera=0,time=0,shake=0,toastTime=0,banterTime=0,checkpoint='',coop=false,sound=false,audio;
 let race='human',job='brawler',aim=0,target=null,last=0,acc=0,enemyID=0,interactable=null,roomWidth=1650;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -15,7 +15,7 @@ const dist=(a,b)=>Math.abs(a.x-b.x);
 const clone=o=>JSON.parse(JSON.stringify(o));
 const alive=()=>enemies.filter(e=>e.hp>0);
 const near=(o,d=85)=>dist(p,o)<d&&Math.abs(p.y-(o.y??FLOOR))<95;
-function fresh(){return {race,job,str:(race==='human'?3:2)+(job==='brawler'?2:0),int:(race==='human'?3:4)+(job==='saboteur'?2:0),hp:6,maxHp:6,bombs:0,fame:0,room:0,seen:[],log:[],sponsor:false,cleared:[],flags:{},kills:0,smart:0};}
+function fresh(){return {race,job,str:(race==='human'?3:2)+(job==='brawler'?2:0),int:(race==='human'?3:4)+(job==='saboteur'?2:0),hp:6,maxHp:6,bombs:0,traps:0,fame:0,room:0,seen:[],log:[],sponsor:false,cleared:[],flags:{},kills:0,smart:0};}
 function beep(freq=220,dur=.08,type='square',vol=.035){if(!sound)return;try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(40,freq/2),audio.currentTime+dur);g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+dur);}catch{}}
 function say(text){$('banter').textContent='“'+text+'”';banterTime=5;}
 function toast(text){$('toast').textContent=text;$('toast').classList.add('show');toastTime=3.3;}
@@ -27,7 +27,7 @@ function hide(){ $('overlay').classList.add('hidden');$('overlay').innerHTML='';
 function save(){try{localStorage.setItem(SAVE,checkpoint);}catch{}}
 function saved(){try{const v=JSON.parse(localStorage.getItem(SAVE));return v&&v.version===1&&v.state&&Number.isInteger(v.state.room)&&v.state.room>=0&&v.state.room<5?v:null;}catch{return null;}}
 function sync(){
- $('inventory-count').textContent=s.bombs;$('inventory-status').textContent=s.bombs?'Carried between rooms · hold K to aim':'Walk over dropped bombs to collect them';
+ $('trap-count').textContent=s.traps??0;$('inventory-count').textContent=s.bombs;$('inventory-status').textContent=s.bombs?'K · throw bomb    T · place trap':'T · place trap    I · open inventory';
  $('str').textContent=s.str;$('int').textContent=s.int;$('bombs').textContent=s.bombs;
  $('player-name').textContent=s.race==='goblin'?'CARL · GOBLIN':'CARL';
  $('health').innerHTML=Array.from({length:s.maxHp},(_,i)=>'<span class="heart '+(i<s.hp?'':'empty')+'">♥</span>').join('');$('health').setAttribute('aria-label',s.hp+' of '+s.maxHp+' health');
@@ -43,7 +43,7 @@ function award(key,amount,label,smart=false){
 }
 function inventory(){
  if(mode==='inventory'){resume();return;}if(mode!=='play')return;mode='inventory';
- show('<div class="eyebrow">CARL’S INVENTORY · GAME PAUSED</div><h2>Save it for a good entrance.</h2><div class="inventory-item"><span class="bomb-symbol" aria-hidden="true"></span><div><strong>Goblin bombs <b>× '+s.bombs+'</b></strong><p>Collected, unlit, and ready whenever you are.</p></div><kbd>K</kbd></div><p>'+(s.bombs?'Hold K to see the throwing arc. Release to throw one bomb. Your remaining bombs stay in your inventory.':'Your bag is empty. Punch wooden crates, defeat goblins, and open cargo chests. Walk over a glowing bomb to collect it.')+'</p><p>Bombs carry into the next room. Your own explosions won’t hurt Carl. There is no inventory limit in this version.</p><button class="primary" id="close-inventory">Back to the dungeon →</button>');
+ show('<div class="eyebrow">CARL’S INVENTORY · GAME PAUSED</div><h2>Save it for a good entrance.</h2><div class="inventory-item"><span class="bomb-symbol" aria-hidden="true"></span><div><strong>Goblin bombs <b>× '+s.bombs+'</b></strong><p>Collected, unlit, and ready whenever you are.</p></div><kbd>K</kbd></div><p>'+(s.bombs?'Hold K to see the throwing arc. Release to throw one bomb. Your remaining bombs stay in your inventory.':'No bombs left. Punch wooden crates, defeat goblins, and open cargo chests. Walk over a glowing bomb to collect it.')+'</p><div class="inventory-item"><span class="trap-symbol" aria-hidden="true">⌁</span><div><strong>Snare traps <b>× '+s.traps+'</b></strong><p>T to place · E to recover an unused trap.</p></div><kbd>T</kbd></div><p>A snare arms in one second and holds the first monster for '+(2+s.int*.15).toFixed(1)+' seconds (bosses: 1.5s). One active trap at a time. Carl and Donut can cross safely. Unused traps are packed when you leave a room.</p><button class="primary" id="close-inventory">Back to the dungeon →</button>');
  $('close-inventory').onclick=resume;
 }
 function dropBombs(x,count,source){
@@ -70,38 +70,40 @@ function drawTruck(t){if(t.phase==='waiting')return;const x=t.x,y=FLOOR-8+(t.pha
  for(const wx of [x-91,x+95]){rect(wx-23,y-32,46,40,'#20262d');rect(wx-27,y-25,54,25,'#20262d');rect(wx-14,y-23,28,23,'#8b8c80');rect(wx-7,y-17,14,12,'#414d4e');if(t.phase==='driving')rect(wx-2,y-23,4,23,'#b5ab8f');}
  if(t.phase==='unloading'||t.phase==='parked'){rect(x+146,y-50,9,39,'#817a59');rect(x+153,y-14,34,6,'#817a59');}
 }
-function spawnEnemy(x,type='goblin'){const boss=type==='boss';return {id:++enemyID,type,x,y:FLOOR,vx:0,vy:0,hp:boss?100:24,max:boss?100:24,face:-1,cool:1,phase:'walk',timer:0,hit:0,w:boss?65:35,h:boss?87:47,attacked:false};}
+function spawnEnemy(x,type='goblin'){const boss=type==='boss',llama=type==='llama';return {id:++enemyID,type,x,y:FLOOR,vx:0,vy:0,hp:boss?100:llama?32:24,max:boss?100:llama?32:24,face:-1,cool:1,phase:'walk',timer:0,hit:0,w:boss?98:llama?62:35,h:boss?116:llama?76:47,attacked:false};}
 function loadRoom(index,{persist=true}={}){
- s.room=index;p={x:100,y:FLOOR,vx:0,vy:0,face:1,onGround:true,cool:0,attack:0,inv:0};cat={x:55,y:FLOOR,vx:0,vy:0,cool:0,onGround:true,face:1};
- enemies=[];props=[];platforms=[];bombs=[];shots=[];particles=[];floats=[];camera=0;target=null;aim=0;roomWidth=1650;
+ s.traps??=(index>=2?2:0);s.room=index;p={x:100,y:FLOOR,vx:0,vy:0,face:1,onGround:true,cool:0,attack:0,inv:0};cat={x:55,y:FLOOR,vx:0,vy:0,cool:0,onGround:true,face:1};
+ enemies=[];props=[];platforms=[];bombs=[];shots=[];hostile=[];particles=[];floats=[];camera=0;target=null;aim=0;roomWidth=1650;
  const prop=(type,x,extra={})=>props.push({type,x,y:FLOOR,active:true,...extra});
  if(index===0){prop('crate',370,{loot:1});prop('crate',870);platforms=[{x:570,y:365,w:150},{x:1090,y:330,w:160}];prop('sign',230,{text:'J · PUNCH'});prop('sign',570,{text:'SPACE · JUMP'});prop('door',1510,{label:'FIRST BROADCAST'});say('Try to look competent, Carl. We have an audience.');}
  if(index===1){prop('truck',1900,{phase:'waiting',spawned:0,timer:0,smoke:0});prop('barrel',640);prop('chest',1370,{kind:'bombs'});prop('door',1550,{label:'SUPPLY ROOM'});prop('sign',390,{text:'DELIVERIES →'});platforms=[{x:780,y:310,w:145}];say('A goblin delivery truck. Somehow, I doubt they brought flowers.');}
- if(index===2){prop('switch',520);prop('wall',880);prop('chest',1000,{kind:'supply'});prop('door',1510,{label:'SPONSOR CHALLENGE'});platforms=[{x:720,y:325,w:135}];say('That cracked wall is hiding something. The bombs are yours to spend.');}
+ if(index===2){enemies=[spawnEnemy(1230,'llama')];prop('crate',1080);prop('sign',250,{text:'T · SET A TRAP'});prop('switch',520);prop('wall',880);prop('chest',1000,{kind:'supply'});prop('door',1510,{label:'SPONSOR CHALLENGE'});platforms=[{x:720,y:325,w:135}];say('A Bad Llama. Set a trap, Carl. I refuse to be spat on for ratings.');}
  if(index===3){prop('lever',330);prop('trap',860);prop('barrel',690);prop('chest',1210,{kind:'challenge'});prop('door',1510,{label:'BOSS ARENA'});platforms=[{x:940,y:305,w:130}];say('Optional danger. Optional fame. My beauty, however, is compulsory.');}
- if(index===4){roomWidth=1750;enemies=[spawnEnemy(1130,'boss')];prop('barrel',690);prop('barrel',1370);prop('trap',920);prop('stairs',1580);prop('chest',1440,{kind:'boss'});say('Middle management. Finally, an enemy everyone can get behind.');}
+ if(index===4){roomWidth=1750;enemies=[spawnEnemy(1130,'boss')];prop('barrel',690);prop('barrel',1370);prop('trap',920);prop('stairs',1580);prop('chest',1440,{kind:'boss'});prop('junkheap',470);prop('junkheap',1270);say('The Hoarder. All this storage, and not a single decent cat bed.');}
  // Snapshot before consuming a queued delivery so retries preserve that gift.
  if(persist){checkpoint=JSON.stringify({version:1,state:clone(s)});save();}
  if(s.flags.giftPending){s.flags.giftPending=false;prop('gift',240);}
  sync();
 }
-function setup(){mode='setup';s=fresh();loadRoom(0,{persist:false});const hasSave=!!saved();show('<div class="eyebrow">YOU HAVE BEEN SELECTED</div><h2>Make an entrance.</h2><p>Be Carl. Break things. Let Donut take the credit. Choose your starting style—every combination can finish the floor.</p><div class="selections"><div><span class="select-label">01 / RACE</span><div class="options"><button class="option selected" data-race="human"><strong>Human</strong><small>STR 3 · INT 3</small></button><button class="option" data-race="goblin"><strong>Goblin</strong><small>STR 2 · INT 4</small></button></div></div><div><span class="select-label">02 / CLASS</span><div class="options"><button class="option selected" data-job="brawler"><strong>Brawler</strong><small>+2 STR · heavy punches</small></button><button class="option" data-job="saboteur"><strong>Saboteur</strong><small>+2 INT · rewire traps</small></button></div></div></div><div class="loadout"><span id="loadout">STRENGTH 5 · INTELLIGENCE 3</span><span>♥ 6 health · Donut on your team</span></div><div class="modal-actions"><button class="primary" id="start">Enter the dungeon →</button>'+(hasSave?'<button class="quiet" id="continue">Continue saved floor →</button>':'<small>No timer. Room checkpoints.<br>Your own bombs won’t hurt you.</small>')+'</div><button class="quick-encounter quiet" id="try-encounter">Skip the tutorial · try the goblin truck →</button>');
+function setup(){mode='setup';s=fresh();loadRoom(0,{persist:false});const hasSave=!!saved();show('<div class="eyebrow">YOU HAVE BEEN SELECTED</div><h2>Make an entrance.</h2><p>Be Carl. Break things. Let Donut take the credit. Choose your starting style—every combination can finish the floor.</p><div class="selections"><div><span class="select-label">01 / RACE</span><div class="options"><button class="option selected" data-race="human"><strong>Human</strong><small>STR 3 · INT 3</small></button><button class="option" data-race="goblin"><strong>Goblin</strong><small>STR 2 · INT 4</small></button></div></div><div><span class="select-label">02 / CLASS</span><div class="options"><button class="option selected" data-job="brawler"><strong>Brawler</strong><small>+2 STR · heavy punches</small></button><button class="option" data-job="saboteur"><strong>Saboteur</strong><small>+2 INT · rewire traps</small></button></div></div></div><div class="loadout"><span id="loadout">STRENGTH 5 · INTELLIGENCE 3</span><span>♥ 6 health · Donut on your team</span></div><div class="modal-actions"><button class="primary" id="start">Enter the dungeon →</button>'+(hasSave?'<button class="quiet" id="continue">Continue saved floor →</button>':'<small>No timer. Room checkpoints.<br>Your own bombs won’t hurt you.</small>')+'</div><button class="quick-encounter quiet" id="try-encounter">Skip the tutorial · try the goblin truck →</button><button class="quick-encounter quiet" id="try-traps">Practice traps · face the Bad Llama →</button><button class="quick-encounter quiet" id="try-boss">Try the Hoarder boss →</button>');
  document.querySelectorAll('[data-race]').forEach(b=>b.onclick=()=>{race=b.dataset.race;updateChoice();});document.querySelectorAll('[data-job]').forEach(b=>b.onclick=()=>{job=b.dataset.job;updateChoice();});
  $('start').onclick=()=>{s=fresh();mode='play';loadRoom(0);hide();toast('A / D to move · SPACE to jump · J to punch');};
  $('try-encounter').onclick=()=>{s=fresh();s.bombs=1;s.cleared=[0];mode='play';loadRoom(1);p.x=420;cat.x=360;hide();toast('GOBLIN ENCOUNTER · ONE BOMB IN YOUR INVENTORY');};
+ $('try-traps').onclick=()=>practice(2);$('try-boss').onclick=()=>practice(4);
  if(hasSave)$('continue').onclick=()=>{s=saved().state;race=s.race;job=s.job;mode='play';loadRoom(s.room);hide();toast('Room checkpoint restored');};updateChoice();
 }
 function updateChoice(){document.querySelectorAll('[data-race]').forEach(b=>b.classList.toggle('selected',b.dataset.race===race));document.querySelectorAll('[data-job]').forEach(b=>b.classList.toggle('selected',b.dataset.job===job));const st=fresh();$('loadout').textContent='STRENGTH '+st.str+' · INTELLIGENCE '+st.int;}
-function pause(help=false){if(mode!=='play')return;mode='pause';show('<div class="eyebrow">BROADCAST PAUSED</div><h2>'+ (help?'A little field guide.':'Take a breath.')+'</h2><p>No timer. Think through your next move. Your own explosions never hurt you.</p><div class="help-grid"><span><kbd>A D</kbd> Move Carl</span><span><kbd>SPACE</kbd> Jump / dodge a charge</span><span><kbd>J</kbd> Punch · push barrels</span><span><kbd>K</kbd> Hold to aim, release to throw</span><span><kbd>E</kbd> Open / use / enter a door</span><span><kbd>Q</kbd> Mark a target for Donut</span><span><kbd>I</kbd> Open inventory · pauses the game</span><span><kbd>P / ESC</kbd> Pause / resume</span><span><kbd>E</kbd> Rewire nearby traps as a Saboteur</span></div><p>Donut follows and casts automatically. In two-player mode: Carl uses A/D and Space; Donut uses ←/→, ↑ to jump, and / to cast. Stay within the same screen.</p><div class="modal-actions"><button class="primary" id="resume">Back to the show →</button><button class="quiet" id="retry">Restart this room</button></div>');$('resume').onclick=resume;$('retry').onclick=retry;}
+function pause(help=false){if(mode!=='play')return;mode='pause';show('<div class="eyebrow">BROADCAST PAUSED</div><h2>'+ (help?'A little field guide.':'Take a breath.')+'</h2><p>No timer. Think through your next move. Your own explosions never hurt you.</p><div class="help-grid"><span><kbd>A D</kbd> Move Carl</span><span><kbd>SPACE</kbd> Jump / dodge projectiles</span><span><kbd>J</kbd> Punch · push barrels</span><span><kbd>T</kbd> Place a snare · E recovers it</span><span><kbd>K</kbd> Hold to aim, release to throw</span><span><kbd>E</kbd> Open / use / enter a door</span><span><kbd>Q</kbd> Mark a target for Donut</span><span><kbd>I</kbd> Open inventory · pauses the game</span><span><kbd>P / ESC</kbd> Pause / resume</span><span><kbd>E</kbd> Rewire nearby traps as a Saboteur</span></div><p>Donut follows and casts automatically. In two-player mode: Carl uses A/D and Space; Donut uses ←/→, ↑ to jump, and / to cast. Stay within the same screen.</p><div class="modal-actions"><button class="primary" id="resume">Back to the show →</button><button class="quiet" id="retry">Restart this room</button></div>');$('resume').onclick=resume;$('retry').onclick=retry;}
 function resume(){if(mode==='pause'||mode==='inventory'){mode='play';hide();}}
 function retry(){if(!checkpoint)return;s=JSON.parse(checkpoint).state;mode='play';loadRoom(s.room);hide();toast('Room restarted · entry supplies restored');}
 function hurt(){if(p.inv>0||mode!=='play')return;s.hp--;p.inv=1.5;shake=5;bits(p.x,p.y-30,'#e98770',8);beep(100,.17,'sawtooth');sync();if(s.hp<=0){mode='dead';show('<div class="eyebrow">A TEMPORARY INTERRUPTION</div><h2>You’re not cancelled. Yet.</h2><p>Restart this room with the health, upgrades, and supplies you had when you entered. Try a jump, a trap, or a different plan.</p><button class="primary" id="retry">Try the room again →</button>');$('retry').onclick=retry;say('A rehearsal. Obviously. Nobody broadcast that.');}}
 function damage(e,amount,source='punch',direction=p.face){if(e.hp<=0)return;
- if(e.type==='boss'&&e.phase!=='stunned'){amount=Math.max(1,Math.round(amount*.22));float('ARMORED',e.x,e.y-e.h-9,'#abb7c5');}else float('-'+Math.round(amount),e.x,e.y-e.h-8,source==='donut'?'#d4acf7':'#ffd19c');
- e.hp-=amount;e.hit=.14;if(e.type!=='boss'){e.vx=direction*(s.job==='brawler'?290:200);e.x=clamp(e.x+direction*12,30,roomWidth-35);}bits(e.x,e.y-e.h/2,source==='donut'?'#bfa0f5':'#d9a479',5);
+ if(e.type==='boss'&&e.phase!=='stunned'&&!(e.snared>0)){amount=Math.max(1,Math.round(amount*.22));float('JUNK ARMOR',e.x,e.y-e.h-9,'#abb7c5');}else float('-'+Math.round(amount),e.x,e.y-e.h-8,source==='donut'?'#d4acf7':'#ffd19c');
+ e.hp-=amount;e.hit=.14;if(e.type!=='boss'&&!(e.snared>0)){e.vx=direction*(s.job==='brawler'?290:200);e.x=clamp(e.x+direction*12,30,roomWidth-35);}bits(e.x,e.y-e.h/2,source==='donut'?'#bfa0f5':'#d9a479',5);
  if(source==='punch'){e.punched=time;if(e.type!=='boss')for(const other of enemies){if(other!==e&&other.hp>0&&Math.abs(other.x-e.x)<70){damage(other,5,'collision',direction);award('collision'+s.room,15,'MONSTER DOMINOES',true);}}}
+ if(source==='explosion'&&e.snared>0)award('snare-combo'+s.room,20,'PLANNED TO PERFECTION',true);
  if(source==='donut'&&e.punched&&time-e.punched<3)award('team'+s.room,12,'TEAMWORK MAKES GOOD TELEVISION',true);
- if(e.hp<=0){e.hp=0;s.kills++;if(e.dropBomb)dropBombs(e.x,1,'goblin');bits(e.x,e.y-e.h/2,e.type==='boss'?'#ffb36d':'#a4bf8a',22);beep(170,.18);if(source==='explosion'||source==='trap')award(source+s.room,20,source==='trap'?'MIND YOUR STEP!':'EXPLOSIVE ENTRANCE',true);if(e.type==='boss'){s.flags.bossDead=true;s.str++;s.int++;s.hp=s.maxHp;award('boss',25,'BOSS DOWN · STR +1 · INT +1');event('Defeated The Floor Manager');say('I did the difficult part. You may carry the chest.');}sync();}
+ if(e.hp<=0){e.hp=0;s.kills++;if(e.type==='llama'){event('Defeated the Bad Llama');say('Appalling manners. Excellent target practice.');}if(e.dropBomb)dropBombs(e.x,1,'goblin');bits(e.x,e.y-e.h/2,e.type==='boss'?'#ffb36d':'#a4bf8a',22);beep(170,.18);if(source==='explosion'||source==='trap')award(source+s.room,20,source==='trap'?'MIND YOUR STEP!':'EXPLOSIVE ENTRANCE',true);if(e.type==='boss'){s.flags.bossDead=true;s.str++;s.int++;s.hp=s.maxHp;award('boss',25,'BOSS DOWN · STR +1 · INT +1');event('Defeated The Hoarder');say('I did the difficult part. You may carry the chest.');}sync();}
 }
 function punch(){if(p.cool>0)return;p.cool=.34;p.attack=.18;beep(140,.05,'triangle');
  const close=alive().filter(e=>dist(p,e)<88&&Math.abs(p.y-e.y)<70).sort((a,b)=>dist(p,a)-dist(p,b))[0];if(close)p.face=Math.sign(close.x-p.x)||p.face;
@@ -120,17 +122,18 @@ function mark(){const list=alive().filter(e=>dist(e,p)<650).sort((a,b)=>a.x-b.x)
 function interaction(){
  let list=props.filter(o=>o.active&&near(o,o.type==='stairs'?100:82));
  if(s.room===3&&!s.flags.challengeStarted&&!s.flags.challengeCleared)list=list.filter(o=>o.type!=='trap');
- const order={gift:0,chest:1,lever:2,switch:2,trap:3,door:4,stairs:4,wall:5};list=list.filter(o=>order[o.type]!==undefined).sort((a,b)=>(order[a.type]-order[b.type])||dist(p,a)-dist(p,b));return list[0]||null;
+ list=list.filter(o=>o.type!=='snare'||!o.spent);
+ const order={snare:-1,gift:0,chest:1,lever:2,switch:2,trap:3,door:4,stairs:4,wall:5};list=list.filter(o=>order[o.type]!==undefined).sort((a,b)=>(order[a.type]-order[b.type])||dist(p,a)-dist(p,b));return list[0]||null;
 }
-function promptFor(o){if(!o)return '';if(o.type==='door'){if(s.room===1&&!broadcastClear())return 'Defeat the goblin road crew';if(s.room===1&&!s.flags.bombsChest)return 'E at the cargo chest · collect your loot';if(s.room===1&&props.some(v=>v.active&&v.type==='pickup'&&v.source==='cargo'))return 'Walk over the dropped cargo bombs to collect them';if(s.room===2&&!s.flags.exitSwitch)return 'Use the exit switch on the left first';if(s.room===3&&s.flags.challengeStarted&&!s.flags.challengeCleared)return 'Finish the challenge to open the door';return 'E · '+(s.room===3&&!s.flags.challengeStarted?'Skip challenge → boss arena':'Enter '+o.label.toLowerCase());}
- if(o.type==='chest'){if(o.open)return '';if(o.kind==='bombs'&&!broadcastClear())return 'Cargo locked · defeat the goblin road crew';if(o.kind==='supply'&&!s.flags.wallOpen)return 'Cracked wall · hold K to aim a bomb, release to throw';if(o.kind==='challenge'&&!s.flags.challengeCleared)return 'Win the sponsor challenge to unlock';if(o.kind==='boss'&&!s.flags.bossDead)return 'Boss reward · defeat The Floor Manager';return 'E · Open '+(o.kind==='supply'?'supply cache · heal +2, STR +1':'loot chest');}
+function promptFor(o){if(!o)return '';if(o.type==='snare')return 'E · Recover unused trap'+(o.arm>0?' · arming…':' · armed');if(o.type==='door'){if(s.room===1&&!broadcastClear())return 'Defeat the goblin road crew';if(s.room===1&&!s.flags.bombsChest)return 'E at the cargo chest · collect your loot';if(s.room===1&&props.some(v=>v.active&&v.type==='pickup'&&v.source==='cargo'))return 'Walk over the dropped cargo bombs to collect them';if(s.room===2&&!s.flags.exitSwitch)return 'Use the exit switch on the left first';if(s.room===3&&s.flags.challengeStarted&&!s.flags.challengeCleared)return 'Finish the challenge to open the door';return 'E · '+(s.room===3&&!s.flags.challengeStarted?'Skip challenge → boss arena':'Enter '+o.label.toLowerCase());}
+ if(o.type==='chest'){if(o.open)return '';if(o.kind==='bombs'&&!broadcastClear())return 'Cargo locked · defeat the goblin road crew';if(o.kind==='supply'&&!s.flags.wallOpen)return 'Cracked wall · hold K to aim a bomb, release to throw';if(o.kind==='challenge'&&!s.flags.challengeCleared)return 'Win the sponsor challenge to unlock';if(o.kind==='boss'&&!s.flags.bossDead)return 'Boss reward · defeat The Hoarder';return 'E · Open '+(o.kind==='supply'?'supply cache · heal +2, STR +1':'loot chest');}
  if(o.type==='switch')return s.flags.exitSwitch?'Exit unlocked':'E · Unlock exit (keep your bombs)';if(o.type==='lever')return s.flags.challengeStarted?'Challenge accepted':'E · Accept optional sponsor challenge';if(o.type==='trap')return s.job==='saboteur'?(o.rewired?'Trap rewired · monsters only':'E · Rewire trap · make it safe for Carl'):'Floor trap · lure monsters here, then jump';if(o.type==='wall')return 'Cracked wall · a bomb could reveal supplies';if(o.type==='gift')return 'E · Sponsor gift · +1 bomb and heal +1';if(o.type==='stairs')return s.flags.bossLoot?'E · Descend the stairs':s.flags.bossDead?'Open the boss chest before descending':'Stairs sealed · defeat the boss';return '';}
-function use(){const o=interaction();if(!o)return;if(o.type==='door'){
+function use(){const o=interaction();if(!o)return;if(o.type==='snare'&&!o.spent){o.active=false;s.traps++;sync();toast('UNUSED TRAP RECOVERED');return;}if(o.type==='door'){
  if((s.room===1&&(!s.flags.bombsChest||!broadcastClear()||props.some(v=>v.active&&v.type==='pickup'&&v.source==='cargo')))||(s.room===2&&!s.flags.exitSwitch)||(s.room===3&&s.flags.challengeStarted&&!s.flags.challengeCleared)){toast(promptFor(o));return;}
  if(s.room===2&&!s.flags.wallOpen)event('Kept bombs instead of opening the supply cache');if(s.room===3&&!s.flags.challengeStarted){s.flags.skippedChallenge=true;event('Skipped the optional sponsor challenge');}
- s.cleared.push(s.room);s.hp=Math.min(s.maxHp,s.hp+1);loadRoom(s.room+1);toast('ROOM CHECKPOINT · +1 HEALTH');return;}
+ packTraps();s.cleared.push(s.room);s.hp=Math.min(s.maxHp,s.hp+1);loadRoom(s.room+1);toast('ROOM CHECKPOINT · +1 HEALTH');return;}
  if(o.type==='chest'&&!o.open){if(o.kind==='bombs'&&!broadcastClear()||o.kind==='supply'&&!s.flags.wallOpen||o.kind==='challenge'&&!s.flags.challengeCleared||o.kind==='boss'&&!s.flags.bossDead){toast(promptFor(o));return;}o.open=true;beep(720,.2,'triangle');bits(o.x,o.y-40,'#ffd17e',16);
- if(o.kind==='bombs'){dropBombs(o.x,2,'cargo');s.flags.bombsChest=true;toast('CARGO OPEN · WALK OVER THE BOMBS TO COLLECT');say('Their delivery is now our inventory. Efficient, really.');}
+ if(o.kind==='bombs'){dropBombs(o.x,2,'cargo');s.traps+=2;s.flags.bombsChest=true;toast('2 TRAP KITS STOWED · COLLECT THE BOMBS');say('Traps! A plan you can put on the floor. Press T to place one.');event('Looted two snare trap kits from the goblin cargo');}
  if(o.kind==='supply'){s.hp=Math.min(s.maxHp,s.hp+2);s.str++;s.flags.supplyLoot=true;toast('SUPPLY CACHE · HEAL +2 · STRENGTH +1');event('Collected the supply cache: strength +1');}
  if(o.kind==='challenge'){dropBombs(o.x,2,'challenge');s.hp=Math.min(s.maxHp,s.hp+1);toast('SPONSOR STASH · 2 BOMBS TO PICK UP · HEAL +1');event('Collected the sponsor challenge reward');}
  if(o.kind==='boss'){s.flags.bossLoot=true;const style=s.smart>=2?'Demolition darling':'Heavyweight favorite';s.flags.sponsorTitle=style;s.bombs+=s.smart>=2?2:1;if(s.smart<2)s.str++;toast(style.toUpperCase()+' · STAIRS UNLOCKED');event('Boss reward: '+style);}
@@ -141,17 +144,19 @@ function use(){const o=interaction();if(!o)return;if(o.type==='door'){
  if(o.type==='gift'){o.active=false;s.bombs++;s.hp=Math.min(s.maxHp,s.hp+1);toast('SPONSOR GIFT · +1 BOMB · HEAL +1');say('A gift for us. Mostly for me, spiritually.');sync();}
  if(o.type==='stairs'&&s.flags.bossLoot)finish();
 }
-function finish(){s.cleared.push(4);mode='win';try{localStorage.removeItem(SAVE);}catch{}sync();show('<div class="eyebrow">FLOOR 01 CLEARED · BROADCAST COMPLETE</div><h2>Going down. Ratings going up.</h2><p>Carl and Donut take the stairs. Your next-floor loadout is ready. This prototype ends here—the next floor is still backstage.</p><div class="result-grid"><div><strong>'+s.str+' / '+s.int+'</strong><small>STRENGTH / INTELLIGENCE</small></div><div><strong>'+s.fame+'</strong><small>AUDIENCE POINTS</small></div><div><strong>'+s.bombs+'</strong><small>BOMBS CARRIED DOWN</small></div></div><p><b>'+s.flags.sponsorTitle+'</b><br>'+(s.flags.wallOpen?'You opened the supply cache.':'You saved your explosives in the supply room.')+' '+(s.flags.challengeCleared?'You won the sponsor challenge.':'You took the safer route to the boss.')+'</p><div class="modal-actions"><button class="primary" id="again">Try another build →</button><button class="quiet" id="export">Save run summary ↓</button></div>');$('again').onclick=setup;$('export').onclick=exportRun;say('I accept your applause. Carl is also here.');}
-function exportRun(){const report={game:'Dungeon Broadcast',floor:1,race:s.race,class:s.job,strength:s.str,intelligence:s.int,health:s.hp,bombs:s.bombs,audience:s.fame,decisions:s.log};const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='dungeon-broadcast-run.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function finish(){packTraps();s.cleared.push(4);mode='win';try{localStorage.removeItem(SAVE);}catch{}sync();show('<div class="eyebrow">FLOOR 01 CLEARED · BROADCAST COMPLETE</div><h2>Going down. Ratings going up.</h2><p>Carl and Donut take the stairs. Your next-floor loadout is ready. This prototype ends here—the next floor is still backstage.</p><div class="result-grid"><div><strong>'+s.str+' / '+s.int+'</strong><small>STRENGTH / INTELLIGENCE</small></div><div><strong>'+s.fame+'</strong><small>AUDIENCE POINTS</small></div><div><strong>'+s.bombs+'</strong><small>BOMBS CARRIED DOWN</small></div></div><p><b>'+s.flags.sponsorTitle+'</b><br>'+(s.flags.wallOpen?'You opened the supply cache.':'You saved your explosives in the supply room.')+' '+(s.flags.challengeCleared?'You won the sponsor challenge.':'You took the safer route to the boss.')+'</p><div class="modal-actions"><button class="primary" id="again">Try another build →</button><button class="quiet" id="export">Save run summary ↓</button></div>');$('again').onclick=setup;$('export').onclick=exportRun;say('I accept your applause. Carl is also here.');}
+function exportRun(){const report={game:'Dungeon Broadcast',floor:1,race:s.race,class:s.job,strength:s.str,intelligence:s.int,health:s.hp,bombs:s.bombs,traps:s.traps,audience:s.fame,decisions:s.log};const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='dungeon-broadcast-run.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function physics(a,dt){const old=a.y;a.vy+=1250*dt;a.x+=a.vx*dt;a.y+=a.vy*dt;a.onGround=false;if(a.y>=FLOOR){a.y=FLOOR;a.vy=0;a.onGround=true;}for(const f of platforms){if(a.x>f.x-10&&a.x<f.x+f.w+10&&old<=f.y+2&&a.y>=f.y&&a.vy>=0){a.y=f.y;a.vy=0;a.onGround=true;}}a.x=clamp(a.x,30,roomWidth-40);}
 function tick(dt){if(mode==='play'||mode==='setup')time+=dt;if(toastTime>0){toastTime-=dt;if(toastTime<=0)$('toast').classList.remove('show');}if(mode!=='play'){pressed.clear();return;}banterTime-=dt;shake=Math.max(0,shake-30*dt);p.cool=Math.max(0,p.cool-dt);p.attack=Math.max(0,p.attack-dt);p.inv=Math.max(0,p.inv-dt);cat.cool=Math.max(0,cat.cool-dt);
  let move=(keys.has('KeyD')||!coop&&keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||!coop&&keys.has('ArrowLeft')?1:0);p.vx=move*(keys.has('KeyK')?120:245);if(move)p.face=move;
  if((pressed.has('Space')||!coop&&pressed.has('ArrowUp')||pressed.has('KeyW'))&&p.onGround){p.vy=-540;beep(260,.09,'triangle');}
- physics(p,dt);if(keys.has('KeyJ'))punch();if(keys.has('KeyK'))aim=clamp(aim+dt,.02,1);else if(aim)throwBomb();if(pressed.has('KeyQ'))mark();if(pressed.has('KeyE')){use();if(mode!=='play'){pressed.clear();return;}}
+ physics(p,dt);if(keys.has('KeyJ'))punch();if(keys.has('KeyK'))aim=clamp(aim+dt,.02,1);else if(aim)throwBomb();if(pressed.has('KeyQ'))mark();if(pressed.has('KeyT'))placeSnare();if(pressed.has('KeyE')){use();if(mode!=='play'){pressed.clear();return;}}
  if(coop){const cm=(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0);cat.vx=cm*265;if(cm)cat.face=cm;if(pressed.has('ArrowUp')&&cat.onGround)cat.vy=-520;if(keys.has('Slash'))cast();}
  else{const desired=p.x-p.face*62,delta=desired-cat.x;cat.vx=clamp(delta*4,-270,270);if(Math.abs(cat.vx)>10)cat.face=Math.sign(cat.vx);if(cat.onGround&&p.y<cat.y-45)cat.vy=-530;if(alive().some(e=>dist(e,p)<480))cast();}
  physics(cat,dt);cat.x=clamp(cat.x,Math.max(25,p.x-430),Math.min(roomWidth-25,p.x+430));
- for(const e of alive()){e.hit=Math.max(0,e.hit-dt);e.cool-=dt;e.timer-=dt;
+ for(const e of alive()){e.hit=Math.max(0,e.hit-dt);e.cool-=dt;e.timer-=dt;e.previousX=e.x;
+ if(e.snared>0){e.snared=Math.max(0,e.snared-dt);e.vx=0;if(e.snared===0){e.phase='walk';e.cool=1;}continue;}
+ if(e.type==='llama'){llamaTick(e,dt);continue;}
  if(e.type==='boss'){bossTick(e,dt);continue;}
  if(e.phase==='arriving'){physics(e,dt);if(e.onGround){e.phase='walk';e.vx=0;}continue;}
  if(e.phase==='windup'){e.vx=0;if(e.timer<=0){if(dist(e,p)<77&&Math.abs(p.y-e.y)<65)hurt();e.phase='recover';e.timer=.6;}}
@@ -162,13 +167,14 @@ function tick(dt){if(mode==='play'||mode==='setup')time+=dt;if(toastTime>0){toas
  e.x=clamp(e.x+e.vx*dt,40,roomWidth-70);
  }
  for(const o of props){if(!o.active)continue;
- if(o.type==='truck')truckTick(o,dt);
+ if(o.type==='truck')truckTick(o,dt);if(o.type==='snare')snareTick(o,dt);
  if(o.type==='pickup'){o.delay-=dt;if(o.delay<=0&&near(o,34)){o.active=false;s.bombs++;float('+1 BOMB',p.x,p.y-74,'#f5cf8f');beep(780,.12,'triangle');sync();$('inventory-button').classList.add('collected');toast('BOMB ADDED TO INVENTORY · HOLD K TO AIM');if(!s.flags.firstPickup){s.flags.firstPickup=true;say('Put that in your inventory, Carl. We may need a dramatic exit.');}}}
  if(o.type==='barrel'){if(o.vx){o.x=clamp(o.x+o.vx*dt,35,roomWidth-35);o.vx*=.987;}if(o.fuse!=null){o.fuse-=dt;if(o.fuse<=0){o.active=false;explode(o.x,o.y-25);}}}
  if(o.type==='trap'){const active=Math.sin(time*2.3)>-.1;o.firing=active;if(active){if(near(o,43)&&p.y>FLOOR-35&&!o.rewired)hurt();for(const e of alive())if(dist(e,o)<50&&!e.trapCooldown){damage(e,20,'trap',Math.sign(e.x-o.x)||1);e.trapCooldown=1.2;}}}
  }
  for(const e of enemies)if(e.trapCooldown)e.trapCooldown=Math.max(0,e.trapCooldown-dt);
  for(let i=bombs.length-1;i>=0;i--){const b=bombs[i];b.fuse-=dt;if(!b.fixed){b.vy+=750*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;if(b.y>FLOOR-10){b.y=FLOOR-10;b.vy*=-.35;b.vx*=.65;}if(b.x<15||b.x>roomWidth-15){b.vx*=-.5;b.x=clamp(b.x,15,roomWidth-15);}}if(b.fuse<=0){bombs.splice(i,1);explode(b.x,b.y);}}
+ hostileTick(dt);
  for(let i=shots.length-1;i>=0;i--){const b=shots[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;const e=alive().find(e=>Math.abs(e.x-b.x)<e.w/2+10&&b.y>e.y-e.h-10&&b.y<e.y+8);if(e){damage(e,5,'donut',Math.sign(b.vx));b.life=0;}if(b.life<=0)shots.splice(i,1);}
  if(s.room===3&&s.flags.challengeStarted&&!s.flags.challengeCleared&&!alive().length){s.flags.challengeCleared=true;award('challenge',25,'SPONSOR CHALLENGE COMPLETE');say('Naturally they loved us. Open our tribute.');}
  if(s.flags.giftPending&&!alive().some(e=>dist(e,p)<400)){s.flags.giftPending=false;props.push({type:'gift',x:clamp(p.x+95,60,roomWidth-100),y:FLOOR,active:true});toast('SPONSOR DELIVERY · A GIFT HAS ARRIVED');}
@@ -176,11 +182,41 @@ function tick(dt){if(mode==='play'||mode==='setup')time+=dt;if(toastTime>0){toas
  camera+= (clamp(p.x-W*.35,0,roomWidth-W)-camera)*Math.min(1,dt*7);
  interactable=interaction();const text=promptFor(interactable);$('prompt').textContent=text;$('prompt').style.display=text?'block':'none';pressed.clear();
 }
+function practice(room){s=fresh();s.bombs=3;s.traps=2;s.cleared=Array.from({length:room},(_,i)=>i);s.flags.bombsChest=true;mode='play';loadRoom(room);p.x=room===2?680:600;cat.x=p.x-60;camera=clamp(p.x-W*.35,0,roomWidth-W);hide();toast('PRACTICE LOADOUT · 3 BOMBS · 2 SNARE TRAPS');}
+function placeSnare(){
+ if(mode!=='play')return;if(!p.onGround||p.y!==FLOOR){toast('Place traps on the dungeon floor');return;}
+ if(props.some(o=>o.type==='snare'&&o.active&&!o.spent)){toast('One active snare · use E to recover it first');return;}
+ if(s.traps<=0){toast('No trap kits · loot the goblin cargo');return;}
+ s.traps--;props.push({type:'snare',x:p.x,y:FLOOR,active:true,arm:1,spent:false});sync();beep(310,.1,'triangle');toast('SNARE ARMING · LURE A MONSTER OVER IT');
+}
+function packTraps(){for(const o of props)if(o.type==='snare'&&o.active&&!o.spent){s.traps++;o.active=false;}}
+function snareTick(o,dt){
+ if(o.spent){o.life-=dt;if(o.life<=0)o.active=false;return;}if(o.arm>0){o.arm=Math.max(0,o.arm-dt);return;}
+ const e=alive().find(e=>Math.abs(e.y-o.y)<28&&(Math.abs(e.x-o.x)<36||Math.min(e.previousX??e.x,e.x)<=o.x&&Math.max(e.previousX??e.x,e.x)>=o.x));
+ if(!e)return;o.spent=true;o.life=2;e.snared=e.type==='boss'?1.5:2+s.int*.15;e.vx=0;e.phase=e.type==='boss'?'stunned':'recover';e.timer=e.snared;
+ bits(o.x,o.y-10,'#b8d6a0',12);float('SNARED!',e.x,e.y-e.h-15,'#badbab');award('snare'+s.room,15,'A LITTLE FORWARD PLANNING',true);event('Caught '+(e.type==='boss'?'the Hoarder':e.type==='llama'?'a Bad Llama':'a goblin')+' in a placed snare');
+}
+function llamaTick(e,dt){
+ e.face=Math.sign(p.x-e.x)||1;
+ if(e.phase==='windup'){e.vx=0;if(e.timer<=0){const x=e.x+e.face*33,y=e.y-58,dx=p.x-x,dy=p.y-28-y,len=Math.hypot(dx,dy)||1;hostile.push({type:'spit',x,y,vx:dx/len*265,vy:dy/len*265,life:3});e.phase='recover';e.timer=.85;e.cool=1.8;beep(170,.08,'sawtooth',.02);}return;}
+ if(e.phase==='recover'){if(e.timer<=0)e.phase='walk';return;}
+ const d=dist(e,p);if(d>620){e.vx=0;return;}if(e.cool<=0){e.phase='windup';e.timer=.95;return;}
+ e.vx=d<210?-e.face*70:d>370?e.face*55:0;e.x=clamp(e.x+e.vx*dt,200,roomWidth-220);
+}
+function tossJunk(e){const x=e.x+e.face*35,y=e.y-84,flight=1.05,gravity=820;hostile.push({type:'junk',x,y,vx:(e.targetX-x)/flight,vy:(FLOOR-20-y-.5*gravity*flight*flight)/flight,gravity,life:flight+.25,targetX:e.targetX});beep(100,.12,'sawtooth',.03);}
 function bossTick(e,dt){
- if(e.phase==='walk'){e.face=Math.sign(p.x-e.x)||-1;e.vx=e.face*50;e.x=clamp(e.x+e.vx*dt,120,roomWidth-160);if(e.cool<=0&&dist(e,p)<850){e.phase='windup';e.timer=1.25;e.face=Math.sign(p.x-e.x)||-1;toast('BOSS IS CHARGING · JUMP OVER IT');}}
- else if(e.phase==='windup'){if(e.timer<=0){e.phase='charge';e.timer=2.7;}}
- else if(e.phase==='charge'){e.x+=e.face*460*dt;if(dist(e,p)<65&&p.y>FLOOR-80)hurt();if(e.x<115||e.x>roomWidth-170||e.timer<=0){e.x=clamp(e.x,115,roomWidth-170);e.phase='stunned';e.timer=3.2;shake=7;beep(75,.2);toast('STUNNED · PUNCH OR USE A BOMB');}}
- else if(e.phase==='stunned'){if(e.timer<=0){e.phase='walk';e.cool=1.3;}}
+ if(e.phase==='walk'){e.face=Math.sign(p.x-e.x)||-1;e.x=clamp(e.x+e.face*52*dt,115,roomWidth-180);if(e.cool<=0&&dist(e,p)<640){e.phase='windup';e.timer=1.1;e.throws=0;e.targetX=p.x;toast('THE HOARDER IS AIMING · MOVE OFF THE MARK');}}
+ else if(e.phase==='windup'){if(e.timer<=0){tossJunk(e);e.throws++;e.phase='between';e.timer=.7;}}
+ else if(e.phase==='between'){if(e.timer<=0){if(e.throws<3){e.phase='windup';e.timer=.8;e.targetX=p.x;}else{e.phase='stunned';e.timer=3.5;toast('THE HOARDER IS WINDED · ATTACK NOW');}}}
+ else if(e.phase==='stunned'){if(e.timer<=0){e.phase='walk';e.cool=.8;}}
+}
+function hostileTick(dt){
+ for(let i=hostile.length-1;i>=0;i--){const b=hostile[i];b.life-=dt;b.vy+=(b.gravity||0)*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;
+ if(b.type==='spit'){const cover=props.find(o=>o.active&&(o.type==='crate'||o.type==='wall')&&Math.abs(o.x-b.x)<27&&b.y>o.y-(o.type==='wall'?120:55)&&b.y<o.y);if(cover){b.life=0;bits(b.x,b.y,'#b5c68b',5);}}
+ if(b.life>0&&Math.abs(b.x-p.x)<(b.type==='junk'?30:23)&&b.y>p.y-48&&b.y<p.y+5){hurt();b.life=0;bits(b.x,b.y,b.type==='spit'?'#a7bf78':'#a79d80',7);}
+ if(b.y>=FLOOR-4){if(b.type==='junk'){bits(b.x,FLOOR-9,'#a69c86',10);if(Math.abs(p.x-b.x)<40&&p.y>FLOOR-35)hurt();}b.life=0;}
+ if(b.life<=0||b.x<0||b.x>roomWidth)hostile.splice(i,1);
+ }
 }
 // Canvas art is deliberately drawn on a coarse pixel grid.
 function rect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
@@ -206,12 +242,27 @@ const monsterSprite=['.....rrrrr......','....rrrrrrr.....','g..ggggggggg..g.','.
 function drawCarl(){ctx.save();if(p.inv>0&&Math.floor(time*12)%2)ctx.globalAlpha=.35;const bob=p.onGround&&Math.abs(p.vx)>10?Math.sin(time*17)*2:0;rect(p.x-19,p.y-3,38,5,'#0005');pixelSprite(s.race==='goblin'?goblinSprite:humanSprite,{h:'#69453b',s:'#e1ab83',w:'#fff0cb',k:'#202530',t:'#ad6952',b:'#e1dcc5',g:'#a5be81'},p.x,p.y-48+bob,3,p.face<0);if(p.attack>0){rect(p.x+p.face*27-10,p.y-33,22,15,'#e5b089');rect(p.x+p.face*43-9,p.y-36,14,22,'#ffe0ae88');}ctx.restore();text('CARL',p.x,p.y-62,9,'#e6bea1');}
 function drawCat(){const bob=cat.onGround&&Math.abs(cat.vx)>10?Math.sin(time*17)*2:0;rect(cat.x-19,cat.y-2,37,4,'#0005');pixelSprite(catSprite,{y:'#eec46d',p:'#c5b0ce',w:'#b8e5ad',n:'#785878',t:'#aa8bbc'},cat.x,cat.y-36+bob,3,cat.face<0);text(coop?'DONUT · P2':'DONUT',cat.x,cat.y-48,9,'#ccb1e8');if(cat.cool>1.25){ctx.strokeStyle='#b59ae6';ctx.beginPath();ctx.arc(cat.x,cat.y-22,25,0,Math.PI*2);ctx.stroke();}}
 function drawEnemy(e){if(e.hp<=0)return;ctx.save();if(e.hit>0)ctx.globalAlpha=.6;rect(e.x-e.w/2,e.y-3,e.w,6,'#0006');
- if(e.type==='boss'){const c=e.phase==='stunned'?'#826a58':'#9c7c6b';rect(e.x-25,e.y-81,50,31,c);rect(e.x-29,e.y-75,58,13,'#b59a7a');rect(e.x-20,e.y-66,40,7,'#27303a');rect(e.x-13,e.y-65,7,4,'#ffa568');rect(e.x+8,e.y-65,7,4,'#ffa568');rect(e.x-32,e.y-49,64,31,'#65576a');rect(e.x-39,e.y-47,14,31,'#8d7770');rect(e.x+25,e.y-47,14,31,'#8d7770');rect(e.x-24,e.y-19,18,19,'#423f4f');rect(e.x+7,e.y-19,18,19,'#423f4f');rect(e.x-31,e.y-6,27,7,'#b49877');rect(e.x+6,e.y-6,27,7,'#b49877');if(e.phase!=='stunned'){rect(e.x+e.face*35-13,e.y-54,26,50,'#b29673');rect(e.x+e.face*35-8,e.y-47,16,36,'#5b6470');}else{text('✦  ✦  ✦',e.x,e.y-100,19,'#ffcf79');}text('THE FLOOR MANAGER',e.x,e.y-123,11,'#f1c8a0');rect(e.x-70,e.y-114,140,6,'#29222d');rect(e.x-70,e.y-114,140*e.hp/e.max,6,'#e39d78');}
+ if(e.type==='boss'){
+ const x=e.x,y=e.y,bob=e.phase==='walk'?Math.sin(time*5)*2:0;
+ rect(x-45,y-80+bob,90,67,'#716075');rect(x-52,y-58,104,33,'#65586a');rect(x-31,y-108+bob,66,41,'#b39680');rect(x-35,y-116+bob,72,18,'#676263');rect(x-40,y-110+bob,15,33,'#676263');rect(x+27,y-108+bob,15,32,'#676263');
+ rect(x-18,y-97+bob,9,5,'#303235');rect(x+12,y-97+bob,9,5,'#303235');rect(x-12,y-82+bob,29,8,e.phase==='stunned'?'#463d44':'#68554d');rect(x-65,y-61,20,46,'#b39680');rect(x+46,y-65,22,49,'#b39680');rect(x-38,y-16,27,17,'#594e48');rect(x+15,y-16,27,17,'#594e48');
+ if(e.phase!=='stunned'){rect(x-38,y-71,29,31,'#8b8f70');rect(x-8,y-61,38,28,'#9f7752');rect(x+16,y-79,28,27,'#777c87');rect(x-34,y-68,21,4,'#b6b899');rect(x-3,y-57,27,4,'#c9aa72');}else text('✦  WINDED  ✦',x,y-132,12,'#ffd69a');
+ text('THE HOARDER',x,y-154,12,'#e8bbaa');rect(x-72,y-144,144,6,'#302632');rect(x-72,y-144,144*e.hp/e.max,6,'#d79789');
+ if(e.phase==='windup'){const tx=e.targetX;rect(tx-33,FLOOR-4,66,4,'#e9a47d');text('↓',tx,FLOOR-18,24,'#e9a47d');}
+ }
+ else if(e.type==='llama'){
+ const x=e.x,y=e.y,f=e.face,bob=Math.sin(time*7)*1.5;
+ rect(x-26,y-48+bob,50,29,'#d3bc95');rect(x-28,y-45+bob,7,14,'#f0d8ab');rect(x+f*20-9,y-73+bob,17,45,'#d3bc95');rect(x+f*25-14,y-81+bob,31,19,'#e4cda3');rect(x+f*28-8,y-90+bob,5,13,'#d3bc95');rect(x+f*17-3,y-90+bob,5,13,'#d3bc95');rect(x+f*35-4,y-76+bob,5,4,'#272b32');
+ rect(x-20,y-22,9,22,'#aa936e');rect(x+13,y-22,9,22,'#aa936e');rect(x-21,y-5,11,5,'#5e564e');rect(x+12,y-5,11,5,'#5e564e');rect(x-17,y-45,31,17,'#a76057');rect(x-12,y-41,22,5,'#d8a469');text('BAD LLAMA',x,y-107,9,'#dbcea6');rect(x-27,y-101,54,4,'#292d32');rect(x-27,y-101,54*e.hp/e.max,4,'#bac894');
+ }
  else{pixelSprite(monsterSprite,{h:'#8b6548',g:'#9ec36a',w:'#ffedb2',n:'#709647',k:'#313837',r:'#ba6655',b:'#494847'},e.x,e.y-49,3.5,e.face<0);rect(e.x-19,e.y-58,38,4,'#272c34');rect(e.x-19,e.y-58,38*e.hp/e.max,4,'#a7c58a');}
- if(e.phase==='windup'){text('!',e.x,e.y-e.h-18,26,'#ffc36c');ctx.strokeStyle='#eab36d77';ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(e.x,e.y+1);ctx.lineTo(e.x+e.face*(e.type==='boss'?450:75),e.y+1);ctx.stroke();ctx.setLineDash([]);}
+ if(e.snared>0){ctx.strokeStyle='#bfd69b';ctx.strokeRect(e.x-e.w/2-6,e.y-17,e.w+12,12);text('SNARED',e.x,e.y-e.h-22,10,'#c5dda6');}
+ if(e.phase==='windup'){text('!',e.x,e.y-e.h-18,26,'#ffc36c');ctx.strokeStyle='#eab36d77';ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(e.x,e.y+1);ctx.lineTo(e.x+e.face*(e.type==='boss'?0:e.type==='llama'?320:75),e.y+1);ctx.stroke();ctx.setLineDash([]);}
  if(target===e.id){text('▼',e.x,e.y-e.h-32,16,'#c5a1f4');}ctx.restore();}
 function drawProp(o){if(!o.active)return;const x=o.x,y=o.y;
  if(o.type==='truck'){drawTruck(o);return;}
+ if(o.type==='snare'){const c=o.spent?'#667368':o.arm>0?'#bba67b':'#c0d998';rect(x-26,y-5,52,5,'#61635a');for(let j=0;j<5;j++){rect(x-25+j*11,y-(o.spent?8:14),5,o.spent?5:9,c);}rect(x-4,y-7,8,6,c);text(o.spent?'SPRUNG':o.arm>0?'ARMING…':'SNARE · READY',x,y-26,9,c);return;}
+ if(o.type==='junkheap'){rect(x-60,y-40,120,40,'#4b4a48');for(let j=0;j<7;j++){rect(x-55+j*16,y-25-(j%3)*17,29,23,['#77725c','#6c6071','#8b7153'][j%3]);}return;}
  if(o.type==='pickup'){const bob=Math.sin(time*4+o.x)*3;ctx.fillStyle='#ffbc6b18';ctx.beginPath();ctx.arc(x,y-17,23,0,Math.PI*2);ctx.fill();drawBombIcon(x,y-17+bob);text('PICK UP',x,y-45,8,'#e7c58d');return;}
  if(o.type==='crate'){rect(x-23,y-43,46,43,'#8b694b');rect(x-19,y-39,38,35,'#493e34');rect(x-15,y-36,7,33,'#a07952');rect(x+9,y-36,7,33,'#a07952');rect(x-19,y-25,37,6,'#a07952');}
  if(o.type==='barrel'){rect(x-20,y-45,40,42,'#864d42');rect(x-16,y-49,32,5,'#a57350');rect(x-22,y-36,44,7,'#4c4448');rect(x-22,y-14,44,7,'#4c4448');text('×',x,y-18,22,'#ffd693');if(o.fuse!=null){rect(x-3,y-57,6,9,'#ffd189');text('!',x,y-65,19,'#ffd189');}}
@@ -228,6 +279,7 @@ function render(){ctx.save();if(shake)ctx.translate(Math.sin(time*80)*shake,Math
  for(const f of platforms){rect(f.x,f.y,f.w,8,'#877963');rect(f.x+4,f.y+8,f.w-8,17,'#44464a');for(let i=12;i<f.w;i+=35)rect(f.x+i,f.y+13,24,6,'#596065');}
  for(const o of props.filter(o=>o.type==='truck'))drawProp(o);for(const o of props.filter(o=>o.type!=='truck'))drawProp(o);for(const e of enemies)drawEnemy(e);drawCat();drawCarl();
  for(const b of bombs){rect(b.x-7,b.y-7,14,14,'#353442');rect(b.x-4,b.y-10,8,4,'#aa997a');rect(b.x,b.y-15,4,6,'#ffc277');}
+ for(const b of hostile){if(b.type==='spit'){rect(b.x-6,b.y-5,12,10,'#bbd17f');rect(b.x-2,b.y-3,5,4,'#e2eeb1');}else{rect(b.x-14,b.y-12,28,24,'#968573');rect(b.x-10,b.y-9,20,5,'#c9bfa3');rect(b.x-3,b.y-12,5,24,'#666877');text('↓',b.targetX,FLOOR-9,16,'#d8987477');}}
  for(const b of shots){rect(b.x-7,b.y-3,14,6,'#9d79d5');rect(b.x-3,b.y-4,6,8,'#e1caff');}
  drawAim();for(const a of particles){ctx.globalAlpha=clamp(a.life*2,0,1);if(a.radius){ctx.strokeStyle=a.color;ctx.lineWidth=6;ctx.beginPath();ctx.arc(a.x,a.y,a.radius*(1-a.life/.35),0,Math.PI*2);ctx.stroke();ctx.lineWidth=1;}else rect(a.x,a.y,a.size,a.size,a.color);}ctx.globalAlpha=1;
  for(const f of floats){ctx.globalAlpha=clamp(f.life,0,1);text(f.text,f.x,f.y,12,f.color);}ctx.globalAlpha=1;ctx.restore();
@@ -235,7 +287,7 @@ function render(){ctx.save();if(shake)ctx.translate(Math.sin(time*80)*shake,Math
  const v=ctx.createLinearGradient(0,0,0,H);v.addColorStop(0,'#090d1b66');v.addColorStop(.25,'#00000000');v.addColorStop(.9,'#00000000');v.addColorStop(1,'#080b1655');ctx.fillStyle=v;ctx.fillRect(0,0,W,H);for(let y=0;y<H;y+=4)rect(0,y,W,1,'#070c1218');ctx.restore();
 }
 function frame(stamp){if(!last)last=stamp;acc+=Math.min((stamp-last)/1000,.08);last=stamp;while(acc>=DT){tick(DT);acc-=DT;}render();requestAnimationFrame(frame);}
-window.addEventListener('keydown',e=>{const controlled=['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyA','KeyD','KeyW','KeyJ','KeyK','KeyQ','KeyE','Slash','KeyP','KeyI','Escape'];if(!controlled.includes(e.code))return;if(e.target instanceof HTMLButtonElement&&e.code==='Space')return;e.preventDefault();if(e.repeat)return;if(e.code==='KeyI'){inventory();return;}if(e.code==='KeyP'||e.code==='Escape'){mode==='pause'||mode==='inventory'?resume():pause();return;}if(!keys.has(e.code))pressed.add(e.code);keys.add(e.code);});
+window.addEventListener('keydown',e=>{const controlled=['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyA','KeyD','KeyW','KeyJ','KeyK','KeyQ','KeyE','Slash','KeyP','KeyI','KeyT','Escape'];if(!controlled.includes(e.code))return;if(e.target instanceof HTMLButtonElement&&e.code==='Space')return;e.preventDefault();if(e.repeat)return;if(e.code==='KeyI'){inventory();return;}if(e.code==='KeyP'||e.code==='Escape'){mode==='pause'||mode==='inventory'?resume():pause();return;}if(!keys.has(e.code))pressed.add(e.code);keys.add(e.code);});
 window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();pressed.clear();aim=0;if(mode==='play')pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='play')pause();});
 $('inventory-button').onclick=inventory;
 $('pause').onclick=()=>mode==='pause'||mode==='inventory'?resume():pause();$('help').onclick=()=>{if(mode==='play')pause(true);else if(mode==='setup')toast('Start the game, then use ? for the field guide');};
@@ -245,6 +297,6 @@ try{sound=localStorage.getItem('dungeon-broadcast-sound')==='on';}catch{}updateS
 $('coop').onclick=()=>{coop=!coop;$('coop').innerHTML='P2 <span>'+(coop?'LEAVE':'JOIN')+'</span>';toast(coop?'PLAYER 2 · ARROWS + / TO CAST':'DONUT AI IS BACK');say(coop?'At last. Someone qualified to direct my talents.':'I was doing a splendid job on my own, actually.');canvas.focus({preventScroll:true});};
 document.querySelectorAll('[data-key]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);const k=b.dataset.key;if(!keys.has(k))pressed.add(k);keys.add(k);});const release=()=>keys.delete(b.dataset.key);b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',release);});
 // Read-only structured observations are available for future planning experiments.
-window.dungeon={observe:()=>clone({mode,room:s.room,stats:{strength:s.str,intelligence:s.int,health:s.hp,bombs:s.bombs,audience:s.fame},player:p,companion:cat,enemies:alive(),objects:props,decisions:s.log}),version:'0.2.0'};
+window.dungeon={observe:()=>clone({mode,room:s.room,stats:{strength:s.str,intelligence:s.int,health:s.hp,bombs:s.bombs,audience:s.fame},player:p,companion:cat,enemies:alive(),objects:props,inventory:{bombs:s.bombs,traps:s.traps},projectiles:hostile,decisions:s.log}),version:'0.3.0'};
 setup();requestAnimationFrame(frame);
 })();
