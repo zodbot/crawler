@@ -81,3 +81,5 @@ Trapping an enemy and following up with a bomb earns an audience bonus.
 Practice shortcuts on the start screen provide 3 bombs and 2 trap kits.
 Older room checkpoints without trap stock receive two kits from room 3 on.
 Monster appearances and combat are simplified interpretations for this game.
+
+V0.4 character art: larger, detailed Carl and Princess Donut; animated limbs and tail; matching HUD portraits. Character artwork is display-only; collision, combat reach, progression, and save compatibility are unchanged.

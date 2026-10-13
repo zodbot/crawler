@@ -7,3 +7,6 @@
 .quick-encounter{display:block;margin-top:12px;padding:0;color:#cbb99c;font-size:10px;text-decoration:underline;text-underline-offset:3px}
 
 .trap-stock{color:#c1d6a0!important}.trap-symbol{font-size:36px;color:#bdd197;min-width:25px;line-height:1}.inventory-item{padding:14px 20px;margin:10px 0}.inventory-item p{font-size:10px}.touch-controls{flex-wrap:wrap}.touch-controls button{min-width:38px}
+
+/* Matching cast portraits, kept legible beside the game. */
+.portrait,.donut-avatar{width:46px;height:46px;overflow:hidden;flex-shrink:0}.portrait svg,.donut-avatar svg{width:100%;height:100%;display:block}
