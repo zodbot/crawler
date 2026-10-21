@@ -2,7 +2,7 @@
 
 A fan-made dungeon adventure starring Carl and Princess Donut. Punch monsters, plan traps, collect loot, and take on the Murder Dozer—with Donut choosing her own tactics or following your goals.
 
-![Carl and Princess Donut in the Bad Llama den, with Donut’s glowing Royal Decoy and companion goal controls visible.](docs/images/dungeon-broadcast.png)
+![Carl and Princess Donut in the Bad Llama den, with Donut’s glowing Royal Decoy and companion goal controls visible.](docs/images/dungeon-broadcast.jpg)
 
 *Donut’s Royal Decoy in the Bad Llama den.*
 
