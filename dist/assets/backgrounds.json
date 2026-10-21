@@ -1,0 +1,22 @@
+[
+  {
+    "src": "assets/hallway-entrance.png",
+    "ground": 0.87
+  },
+  {
+    "src": "assets/hallway-workshop.png",
+    "ground": 0.85
+  },
+  {
+    "src": "assets/hallway-stable.png",
+    "ground": 0.89
+  },
+  {
+    "src": "assets/hallway-broadcast.png",
+    "ground": 0.935
+  },
+  {
+    "src": "assets/hallway-machinery.png",
+    "ground": 0.92
+  }
+]

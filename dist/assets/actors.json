@@ -1,0 +1,304 @@
+{
+  "carl": {
+    "src": "assets/carl-atlas.png",
+    "scale": 0.235,
+    "portrait": [
+      136,
+      10,
+      116,
+      118
+    ],
+    "frames": [
+      {
+        "sx": 22,
+        "sy": 12,
+        "sw": 274,
+        "sh": 505,
+        "anchorX": 168,
+        "anchorY": 494
+      },
+      {
+        "sx": 343,
+        "sy": 12,
+        "sw": 353,
+        "sh": 506,
+        "anchorX": 205,
+        "anchorY": 496
+      },
+      {
+        "sx": 737,
+        "sy": 12,
+        "sw": 316,
+        "sh": 501,
+        "anchorX": 192,
+        "anchorY": 489
+      },
+      {
+        "sx": 1106,
+        "sy": 12,
+        "sw": 332,
+        "sh": 505,
+        "anchorX": 191,
+        "anchorY": 494
+      },
+      {
+        "sx": 18,
+        "sy": 559,
+        "sw": 347,
+        "sh": 491,
+        "anchorX": 199,
+        "anchorY": 477
+      },
+      {
+        "sx": 355,
+        "sy": 550,
+        "sw": 341,
+        "sh": 399,
+        "anchorX": 227,
+        "anchorY": 385
+      },
+      {
+        "sx": 737,
+        "sy": 564,
+        "sw": 324,
+        "sh": 486,
+        "anchorX": 198,
+        "anchorY": 475
+      },
+      {
+        "sx": 1088,
+        "sy": 571,
+        "sw": 349,
+        "sh": 478,
+        "anchorX": 226,
+        "anchorY": 468
+      }
+    ]
+  },
+  "donut": {
+    "src": "assets/donut-atlas.png",
+    "scale": 0.15,
+    "portrait": [
+      302,
+      77,
+      191,
+      222
+    ],
+    "frames": [
+      {
+        "sx": 36,
+        "sy": 78,
+        "sw": 455,
+        "sh": 396,
+        "anchorX": 264,
+        "anchorY": 393
+      },
+      {
+        "sx": 527,
+        "sy": 87,
+        "sw": 463,
+        "sh": 386,
+        "anchorX": 285,
+        "anchorY": 383
+      },
+      {
+        "sx": 1031,
+        "sy": 81,
+        "sw": 481,
+        "sh": 391,
+        "anchorX": 293,
+        "anchorY": 387
+      },
+      {
+        "sx": 26,
+        "sy": 543,
+        "sw": 492,
+        "sh": 392,
+        "anchorX": 284,
+        "anchorY": 388
+      },
+      {
+        "sx": 532,
+        "sy": 537,
+        "sw": 526,
+        "sh": 327,
+        "anchorX": 280,
+        "anchorY": 321
+      },
+      {
+        "sx": 1056,
+        "sy": 543,
+        "sw": 471,
+        "sh": 401,
+        "anchorX": 278,
+        "anchorY": 396
+      }
+    ]
+  },
+  "carlThrow": {
+    "src": "assets/carl-throw-atlas.png",
+    "scale": 0.176,
+    "frames": [
+      {
+        "sx": 18,
+        "sy": 180,
+        "sw": 481,
+        "sh": 704,
+        "anchorX": 262,
+        "anchorY": 688
+      },
+      {
+        "sx": 507,
+        "sy": 145,
+        "sw": 500,
+        "sh": 739,
+        "anchorX": 271,
+        "anchorY": 722
+      },
+      {
+        "sx": 1007,
+        "sy": 215,
+        "sw": 528,
+        "sh": 669,
+        "anchorX": 313,
+        "anchorY": 652
+      }
+    ]
+  },
+  "mordecai": {
+    "src": "assets/mordecai-atlas.png",
+    "scale": 0.113,
+    "frames": [
+      {
+        "sx": 40,
+        "sy": 0,
+        "sw": 680,
+        "sh": 1010,
+        "anchorX": 450,
+        "anchorY": 974
+      },
+      {
+        "sx": 730,
+        "sy": 0,
+        "sw": 780,
+        "sh": 1010,
+        "anchorX": 440,
+        "anchorY": 974
+      }
+    ]
+  },
+  "dozer": {
+    "src": "assets/dozer-atlas.png",
+    "scale": 0.32,
+    "frames": [
+      {
+        "sx": 30,
+        "sy": 0,
+        "sw": 1470,
+        "sh": 515,
+        "anchorX": 750,
+        "anchorY": 486
+      },
+      {
+        "sx": 30,
+        "sy": 519,
+        "sw": 1480,
+        "sh": 501,
+        "anchorX": 750,
+        "anchorY": 475
+      }
+    ]
+  },
+  "goblin": {
+    "src": "assets/goblin-atlas.png",
+    "scale": 0.19,
+    "frames": [
+      {
+        "sx": 100,
+        "sy": 0,
+        "sw": 320,
+        "sh": 515,
+        "anchorX": 150,
+        "anchorY": 505
+      },
+      {
+        "sx": 590,
+        "sy": 0,
+        "sw": 370,
+        "sh": 515,
+        "anchorX": 180,
+        "anchorY": 505
+      },
+      {
+        "sx": 1080,
+        "sy": 0,
+        "sw": 390,
+        "sh": 515,
+        "anchorX": 195,
+        "anchorY": 506
+      },
+      {
+        "sx": 40,
+        "sy": 530,
+        "sw": 430,
+        "sh": 474,
+        "anchorX": 230,
+        "anchorY": 455
+      },
+      {
+        "sx": 525,
+        "sy": 530,
+        "sw": 540,
+        "sh": 474,
+        "anchorX": 250,
+        "anchorY": 455
+      },
+      {
+        "sx": 1070,
+        "sy": 530,
+        "sw": 410,
+        "sh": 474,
+        "anchorX": 210,
+        "anchorY": 455
+      }
+    ]
+  },
+  "llama": {
+    "src": "assets/llama-atlas.png",
+    "scale": 0.235,
+    "frames": [
+      {
+        "sx": 170,
+        "sy": 0,
+        "sw": 480,
+        "sh": 512,
+        "anchorX": 210,
+        "anchorY": 503
+      },
+      {
+        "sx": 875,
+        "sy": 0,
+        "sw": 535,
+        "sh": 512,
+        "anchorX": 245,
+        "anchorY": 498
+      },
+      {
+        "sx": 130,
+        "sy": 515,
+        "sw": 560,
+        "sh": 491,
+        "anchorX": 235,
+        "anchorY": 467
+      },
+      {
+        "sx": 800,
+        "sy": 530,
+        "sw": 690,
+        "sh": 474,
+        "anchorX": 275,
+        "anchorY": 449
+      }
+    ]
+  }
+}
